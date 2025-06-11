@@ -5,7 +5,7 @@ These routines require existing MMIF files containing annotations of audio, as p
 
 ## Overview
 
-The `process_ww.py` module includes functions for processing MMIF produced by the [CLAMS whisper-wrapper app](https://github.com/clamsproject/app-whisper-wrapper).
+The `proc_ww` module includes functions for processing MMIF produced by the [CLAMS whisper-wrapper app](https://github.com/clamsproject/app-whisper-wrapper).
 
 The `post_proc_item` module includes functions called by `run_job.py` from [clams-kitchen](https://github.com/WGBH-MLA/clams-kitchen) calls functions in `process_ww.py` to perform postprocessing on MMIF produced by whisper-wrapper.
 

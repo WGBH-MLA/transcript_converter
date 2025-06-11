@@ -1,0 +1,2 @@
+mmif-python>=1.0.14
+pandas>=2
