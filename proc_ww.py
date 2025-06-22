@@ -14,6 +14,10 @@ from mmif import Mmif
 from mmif import AnnotationTypes
 
 
+# list of tokens which need not be preceded by a space when added to a sentence string
+NO_SPACE_BEFORE = ['.', ',', '-', '/']
+
+# %%
 def get_ww_view_id(mmif_str):
     """
     Takes a MMIF string and returns the ID of the view from whisper-wrapper
@@ -42,8 +46,8 @@ def get_ww_view_id(mmif_str):
     return ww_view_id
 
 
-
-def seg_toks( mmif_str, ww_view_id):
+# %%
+def make_toks_arr( mmif_str, ww_view_id):
     """
     Takes a MMIF string and a view ID and returns a table of tokens and their times.
     """
@@ -89,59 +93,185 @@ def seg_toks( mmif_str, ww_view_id):
     del tfs_tos_df['to_id']
 
     # want to return a list instead of a dataframe
-    toks = tfs_tos_df.values.tolist()
-
-    return toks
-
-
-def split_sts( toks, max_chars ):
-    pass
-
-
-
-
-def seg_sts( toks ):
-    """
-    Takes the token arrary and combines tokens into their sentences.
-    """
+    toks_arr = tfs_tos_df.values.tolist()
     
-    no_space_before = ['.', ',', '-', '/']
+    # make sure the annotations are in the right order
+    toks_arr.sort(key=lambda f:f[0])
 
-    # empty list of sentences
+    # scan through list to make sure sentences are not disjointed
     sts = []
-
-    # begin first sentence
-    start = toks[0][0]
-    end = toks[0][1]
-    se = toks[0][2]
-    se_id = toks[0][3]
-
-    for t in toks[1:]:
-        if t[3] == se_id:
-            # Same sentence.  Extend sentence string
-            end = t[1]
-            if t[2][0] in no_space_before:
-                se += t[2]
+    last = ''
+    disc_sts = []
+    for t in toks_arr:
+        if t[3] != last:
+            if t[3] not in sts:
+                sts.append(t[3])
+                last = t[3]
             else:
-                se += " " + t[2]
-        else:
-            # New sentence id.  
-            # Append current sentence to the list
-            sts.append([start, end, se])
-            # Start new sentence
-            start = t[0]
-            end = t[1]
-            se = t[2]
-            se_id = t[3]
+                # found a discontinuous sentence
+                disc_sts.append(t[3])
+    if len(disc_sts):
+        logging.warning("Encountered discontinuous sentences: " + str(set(disc_sts)) )
 
-    # append final sentence to the list
-    sts.append([start, end, se])
+    return toks_arr
 
-    return sts
+
+# %%
+def split_long_sts( toks_arr, 
+                    max_chars:int=80,
+                    max_toks_backtrack:int=3,
+                    min_toks_dangled:int=3 ):
+    """
+    Re-labels sentences in an array of tokens to limit the manximum length of
+    a sentence.  Since "sentences" here are not necessarily sentences but rather
+    wherever Whisper made segments (effectively among lines), this function is 
+    useful for limiting the maximum line length
+    
+    Strategy:
+      - Take a token arrary.
+      - Analyze the sentences, to look for ones that are too long. 
+      - If a sentence is too long, try to split it at a reasonable place.
+        (Operate recursively for very long sentences)
+      - Return a token array with updated sentence labels.
+
+    Heuristics for split points:
+      - Aim for lines near but not above the max.
+      - Avoid stranding too few tokens on a line by themsleves.
+      - Try to split after punctuation, if convenient to do so without having 
+        to backtrack too far to find the punctuation.
+
+    Parameters
+      - max_chars: the maximum length of a sentence in characters
+      - max_toks_backtrack: the maximum number of tokens to backtrack from the
+           end of a maximally long line in order to find an elegant location
+           to divide
+      - min_toks_dangled: the minimum number of tokens that a new sentence division
+           should leave dangled in a new sentence by themselves.  (This value
+           must be >= 1.)
+    """
+
+    # Some hard-coded characters and tokens for splitting heuristics
+    splitting_punc = ['.', ',']
+    common_abbrevs = ["Mr.", "Mrs.", "Ms.", "Dr.", "Sr.", "Sra.", "Srta."]
+
+    # build ordered lists of sentence ids
+    st_ids = []
+    for t in toks_arr:
+        if t[3] not in st_ids:
+            st_ids.append(t[3])
+
+    # perform analysis and splitting sentence-by-sentence
+    for st_id in st_ids:
+        sttoks_arr = [ t for t in toks_arr if t[3] == st_id ]  
         
+        # calculate the length of the current sentence
+        st = ""
+        for t in sttoks_arr:
+            if len(st) > 0 and t[2][0] not in NO_SPACE_BEFORE:
+                st += " "
+            st += t[2]
+        
+        # print(t[3], len(st), st )  # DIAG
 
+        # If the line is too long, analyze and re-label sentences to perform split 
+        if len(st) > max_chars:
 
+            # find the index of the last token that would put the sentence under the limit            
+            lasti = 0
+            st = ""
+            for i, t in enumerate(sttoks_arr):
+                if len(st) > 0 and t[2][0] not in NO_SPACE_BEFORE:
+                    st += " "
+                st += t[2]
+                if len(st) <= max_chars:
+                    # don't want to advance `lasti` if the next line will be too short
+                    if len(sttoks_arr) > i + min_toks_dangled:
+                        # Make sure the last token on a line isn't immediately before a 
+                        # token that has no space before it.
+                        if sttoks_arr[i+1][2][0] not in NO_SPACE_BEFORE:
+                            lasti = i
+
+            # Perhaps backtrack `lasti` for elegant breaks on punctuation.
+            # Idea: If posssible, want to break after punction commonly terminating
+            # a semantic segment, like a comma or period. (But we don't want a 
+            # split after the punctuation in a common abbreviaion, like Ms.)
+            if sttoks_arr[lasti][2][-1] not in splitting_punc:
+                for backup in range(1, max_toks_backtrack):
+                    if ( (lasti-backup) >= 0 and 
+                         sttoks_arr[lasti-backup][2][-1] in splitting_punc and
+                         sttoks_arr[lasti-backup][2] not in common_abbrevs ):
+                        lasti = lasti - backup
+                        break 
+
+            # Re-label by assigning a new sentence ID for all tokens after the cut-off
+            for t in sttoks_arr[(lasti+1):]:
+                t[3] = t[3]+"_x"
+            
+            # Recursion step: Run function again now that one relabling is done.
+            # 
+            split_sts(sttoks_arr, max_chars, max_toks_backtrack, min_toks_dangled)
 
 
 
 # %%
+def make_sts_arr( toks_arr ):
+    """
+    Takes the token arrary and combines tokens into their sentences.
+    """    
+
+    # empty list of sentences
+    sts_arr = []
+
+    # begin first sentence
+    start = toks_arr[0][0]
+    end = toks_arr[0][1]
+    st = toks_arr[0][2]
+    st_id = toks_arr[0][3]
+
+    for t in toks_arr[1:]:
+        if t[3] == st_id:
+            # Same sentence.  Extend sentence string
+            end = t[1]
+            if t[2][0] in NO_SPACE_BEFORE:
+                st += t[2]
+            else:
+                st += " " + t[2]
+        else:
+            # New sentence id.  
+            # Append current sentence to the list
+            sts_arr.append([start, end, st])
+            # Start new sentence
+            start = t[0]
+            end = t[1]
+            st = t[2]
+            st_id = t[3]
+
+    # append final sentence to the list
+    sts_arr.append([start, end, st])
+
+    return sts_arr
+        
+
+# %%
+def export_aapbjson( sts_arr,
+                     fpath:str,
+                     guid:str="",
+                     language:str="en-US" ):
+
+    d = {}
+    d["id"] = guid
+    d["language"] = language
+    d["parts"] = []
+
+    for i, st in enumerate(sts_arr):
+        if isinstance(st[2], str) and bool(st[2]):
+            d["parts"].append( { 
+                "start_time": st[0] / 1000,
+                "end_time": st[1] / 1000,
+                "text": st[2],
+                "speaker_id": i+1 } )
+
+    with open( fpath, "w") as file:
+        json.dump( d, file, indent=2 )
+
+
