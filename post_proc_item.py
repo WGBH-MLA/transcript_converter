@@ -21,23 +21,23 @@ from mmif import Mmif
 
 try:
     # if being run from higher level module
-    from . import lilhelp
     from . import proc_ww
 except ImportError:
     # if run as stand-alone
-    import lilhelp
     import proc_ww
 
 # Version notes
 MODULE_VERSION = "0.01"
 
 # These are the defaults specific to routines defined in this module.
-POSTPROC_DEFAULTS = { }
+POSTPROC_DEFAULTS = { "name": None,
+                      "artifacts": [],
+                      "max_line_chars": 100,
+                      "lang_str": "en-US" }
 
-VALID_ARTIFACTS = [ "aapb-json-transcript",
-                    "aajson",
-                    "tpme-mmif",
-                    "tpme-aajson" ]
+VALID_ARTIFACTS = [ "transcripts_aajson",
+                    "tpme_mmif",
+                    "tpme_aajson" ]
 
 
 def run_post( item:dict, 
@@ -86,9 +86,7 @@ def run_post( item:dict,
 
     # check params for extra params
     for key in params:
-        if key not in { **POSTPROC_DEFAULTS, 
-                        **proc_swt.PROC_SWT_DEFAULTS,
-                        **create_visaid.VISAID_DEFAULTS } :
+        if key not in POSTPROC_DEFAULTS:
             print(ins + "Warning: `" + key + "` is not a valid config option for this postprocess. Ignoring.")
 
 
@@ -108,15 +106,35 @@ def run_post( item:dict,
     # Perform foundational processing of MMIF file
     #
     
+    print(ins + "Attempting to process MMIF transcript...")
+
     # Open MMIF and start processing
     mmif_path = item["mmif_paths"][-1]
     with open(mmif_path, "r") as file:
         mmif_str = file.read()
 
-    ww_view_id = proc_ww.get_ww_view_id(mmif_str)
+    usemmif = Mmif(mmif_str)
 
-    print(ins + "Attempting to parse MMIF transcript...")
+    # 
+    # create transcript in AAPB JSON format
+    # 
+    if "transcripts_aajson" in artifacts:
 
-    token_tfs = proc_ww.seg_toks( mmif_str,
-                                  ww_view_id=ww_view_id )
+        toks_arr = proc_ww.make_toks_arr( usemmif )
 
+        proc_ww.split_long_sts( toks_arr, 
+                                max_chars=pp_params["max_line_chars"]  )
+        
+        sts_arr = proc_ww.make_sts_arr( toks_arr )
+
+        if len(sts_arr):
+
+            fpath = artifacts_dir + "/transcripts_aajson/" + item["asset_id"] + "-transcript.json"
+            proc_ww.export_aapbjson( sts_arr, 
+                                     fpath, 
+                                     asset_id=item["asset_id"] )
+
+    # 
+    # Finished with the whole postprocess
+    # 
+    return errors, problems, infos

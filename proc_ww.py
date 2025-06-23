@@ -18,12 +18,10 @@ from mmif import AnnotationTypes
 NO_SPACE_BEFORE = ['.', ',', '-', '/']
 
 # %%
-def get_ww_view_id(mmif_str):
+def get_ww_view_id(usemmif):
     """
     Takes a MMIF string and returns the ID of the view from whisper-wrapper
     """
-
-    usemmif = Mmif(mmif_str)
 
     tf_views = usemmif.get_all_views_contain(AnnotationTypes.TimeFrame)
     to_views = usemmif.get_all_views_contain("http://vocab.lappsgrid.org/Token")
@@ -46,13 +44,23 @@ def get_ww_view_id(mmif_str):
     return ww_view_id
 
 
+def tpme_from_mmif( usemmif, ww_view_id=None):
+    """
+    Takes an MMIF string and a view ID and returns a dictionary of TPME elements
+    and values.
+    """
+    pass
+
+
 # %%
-def make_toks_arr( mmif_str, ww_view_id):
+def make_toks_arr( usemmif, ww_view_id=None):
     """
     Takes a MMIF string and a view ID and returns a table of tokens and their times.
     """
 
-    usemmif = Mmif(mmif_str)
+    if ww_view_id is None:
+        ww_view_id = get_ww_view_id(usemmif)
+
     ww_view = usemmif.get_view_by_id(ww_view_id)
 
     # get relevant MMIF annotations
@@ -209,7 +217,7 @@ def split_long_sts( toks_arr,
             
             # Recursion step: Run function again now that one relabling is done.
             # 
-            split_sts(sttoks_arr, max_chars, max_toks_backtrack, min_toks_dangled)
+            split_long_sts(sttoks_arr, max_chars, max_toks_backtrack, min_toks_dangled)
 
 
 
@@ -255,11 +263,11 @@ def make_sts_arr( toks_arr ):
 # %%
 def export_aapbjson( sts_arr,
                      fpath:str,
-                     guid:str="",
+                     asset_id:str="",
                      language:str="en-US" ):
 
     d = {}
-    d["id"] = guid
+    d["id"] = asset_id
     d["language"] = language
     d["parts"] = []
 
