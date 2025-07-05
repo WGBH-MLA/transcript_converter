@@ -36,6 +36,7 @@ POSTPROC_DEFAULTS = { "name": None,
                       "lang_str": "en-US" }
 
 VALID_ARTIFACTS = [ "transcripts_aajson",
+                    "transcripts_wwmmif",
                     "tpme_mmif",
                     "tpme_aajson" ]
 
@@ -115,24 +116,58 @@ def run_post( item:dict,
 
     usemmif = Mmif(mmif_str)
 
+
+    # 
+    # create transcript in MMIF format (as output by the CLAMS app)
+    # 
+    artifact = "transcripts_wwmmif"
+    if artifact in artifacts:
+
+        fname = item["asset_id"] + "-transcript.mmif"
+        fpath = artifacts_dir + "/" + artifact "/" + fname
+
+
+    # 
+    # create TPME for MMIF transcript 
+    # 
+    artifact = "tpme_wwmmif"
+    if artifact in artifacts:
+        pass
+
+        # make use of existing fname
+
+
+
     # 
     # create transcript in AAPB JSON format
     # 
-    if "transcripts_aajson" in artifacts:
+    artifact = "transcripts_aajson"
+    if artifact in artifacts:
+
+        fname = item["asset_id"] + "-transcript.json"
+        fpath = artifacts_dir + "/" + artifact "/" + fname
 
         toks_arr = proc_ww.make_toks_arr( usemmif )
-
         proc_ww.split_long_sts( toks_arr, 
                                 max_chars=pp_params["max_line_chars"]  )
         
         sts_arr = proc_ww.make_sts_arr( toks_arr )
 
         if len(sts_arr):
-
-            fpath = artifacts_dir + "/transcripts_aajson/" + item["asset_id"] + "-transcript.json"
             proc_ww.export_aapbjson( sts_arr, 
                                      fpath, 
                                      asset_id=item["asset_id"] )
+
+
+    # 
+    # create TPME for AAPB JSON transcript 
+    # 
+    artifact = "tpme_aajson"
+    if artifact in artifacts:
+        pass
+
+        # make use of existing fname
+
 
     # 
     # Finished with the whole postprocess
