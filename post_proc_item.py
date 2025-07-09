@@ -124,7 +124,7 @@ def run_post( item:dict,
     if artifact in artifacts:
 
         fname = item["asset_id"] + "-transcript.mmif"
-        fpath = artifacts_dir + "/" + artifact "/" + fname
+        fpath = artifacts_dir + "/" + artifact + "/" + fname
 
 
     # 
@@ -145,7 +145,7 @@ def run_post( item:dict,
     if artifact in artifacts:
 
         fname = item["asset_id"] + "-transcript.json"
-        fpath = artifacts_dir + "/" + artifact "/" + fname
+        fpath = artifacts_dir + "/" + artifact + "/" + fname
 
         toks_arr = proc_ww.make_toks_arr( usemmif )
         proc_ww.split_long_sts( toks_arr, 
