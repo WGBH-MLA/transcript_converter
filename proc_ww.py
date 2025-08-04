@@ -56,6 +56,12 @@ def tpme_from_mmif( usemmif, ww_view_id=None):
 def make_toks_arr( usemmif, ww_view_id=None):
     """
     Takes a MMIF string and a view ID and returns a table of tokens and their times.
+
+    Columns:
+        0: start time in ms
+        1: end time in ms
+        2: token string
+        3: id of associated sentence
     """
 
     if ww_view_id is None:
@@ -106,20 +112,32 @@ def make_toks_arr( usemmif, ww_view_id=None):
     # make sure the annotations are in the right order
     toks_arr.sort(key=lambda f:f[0])
 
-    # scan through list to make sure sentences are not disjointed
+    # Scan through list to look for issues:
+    #  - Make sure tokens have associated sentences.
+    #  - Make sure sentences are not disjointed.
+    # (Sentences are disjointed if a token is associated with a known sentence
+    # other than the immediately preceding sentence.)
+    toks_without_sts = []
     sts = []
     last = ''
     disc_sts = []
     for t in toks_arr:
         if t[3] != last:
-            if t[3] not in sts:
-                sts.append(t[3])
-                last = t[3]
-            else:
+            if str(t[3]) == 'nan':
+                # first checking for non-sentence totkens
+                toks_without_sts.append(t[2])
+            elif t[3] in sts:
                 # found a discontinuous sentence
                 disc_sts.append(t[3])
+            else:
+                # beginning of a new senences
+                sts.append(t[3])
+                last = t[3]
+    disc_sts = list(set(disc_sts))
+    if len(toks_without_sts):
+        logging.warning("Encountered tokens without sentences: " + str(toks_without_sts) )
     if len(disc_sts):
-        logging.warning("Encountered discontinuous sentences: " + str(set(disc_sts)) )
+        logging.warning("Encountered discontinuous sentences: " + str(disc_sts) )
 
     return toks_arr
 
@@ -224,7 +242,7 @@ def split_long_sts( toks_arr,
 # %%
 def make_sts_arr( toks_arr ):
     """
-    Takes the token arrary and combines tokens into their sentences.
+    Takes the token array and combines tokens into their sentences.
     """    
 
     # empty list of sentences
