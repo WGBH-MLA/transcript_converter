@@ -15,7 +15,7 @@ as long as they are defined in one of the option defauls global variables.
 """
 
 import json
-import datetime
+from datetime import datetime
 
 from mmif import Mmif
 
@@ -27,19 +27,20 @@ except ImportError:
     import proc_ww
 
 # Version notes
-MODULE_VERSION = "0.01"
+MODULE_VERSION = "0.50"
 
 # These are the defaults specific to routines defined in this module.
 POSTPROC_DEFAULTS = { "name": None,
                       "artifacts": [],
                       "max_line_chars": 100,
-                      "lang_str": "en-US" }
+                      "lang_str": "en" }
 
-VALID_ARTIFACTS = [ "transcripts_aajson",
-                    "transcripts_wwmmif",
-                    "tpme_mmif",
+VALID_ARTIFACTS = [ "transcript_aajson",
+                    "transcript_wwmmif",
+                    "tpme_wwmmif",
                     "tpme_aajson" ]
 
+TPME_PROVIDER = "GBH Archives"
 
 def run_post( item:dict, 
               cf:dict, 
@@ -110,42 +111,82 @@ def run_post( item:dict,
     print(ins + "Attempting to process MMIF transcript...")
 
     # Open MMIF and start processing
+    mmif_str = ""
     mmif_path = item["mmif_paths"][-1]
     with open(mmif_path, "r") as file:
         mmif_str = file.read()
-
     usemmif = Mmif(mmif_str)
-
+    ww_view_id = proc_ww.get_ww_view_id(usemmif)
+    ww_view = usemmif.get_view_by_id( ww_view_id )
 
     # 
     # create transcript in MMIF format (as output by the CLAMS app)
     # 
-    artifact = "transcripts_wwmmif"
+    artifact = "transcript_wwmmif"
     if artifact in artifacts:
 
-        fname = item["asset_id"] + "-transcript.mmif"
-        fpath = artifacts_dir + "/" + artifact + "/" + fname
+        mmif_tr_fname = item["asset_id"] + "-transcript.mmif"
+        mmif_tr_fpath = artifacts_dir + "/" + artifact + "/" + mmif_tr_fname
 
+        if mmif_str:
+            with open(mmif_tr_fpath, "w") as file:
+                file.write(mmif_str)
+            print(ins + "MMIF transcript saved: " + mmif_tr_fpath)
 
-    # 
-    # create TPME for MMIF transcript 
-    # 
-    artifact = "tpme_wwmmif"
-    if artifact in artifacts:
-        pass
+        # 
+        # create TPME for MMIF transcript 
+        # 
+        artifact = "tpme_wwmmif"
+        if artifact in artifacts:
 
-        # make use of existing fname
+            iso_ts = ww_view.metadata["timestamp"]
+            dt = datetime.fromisoformat(iso_ts)
 
+            # Set values of TPME elements
+            tpme = {}
+            tpme["media_id"] = item["asset_id"]
+            tpme["transcript_id"] = mmif_tr_fname
+            tpme["modification_date"] = iso_ts
+            tpme["provider"] = TPME_PROVIDER
+            tpme["type"] = "transcript"
+            tpme["file_format"] = "MMIF"
+            tpme["features"] = { "time_aligned": True }
+            try:
+                languages = [ww_view.metadata.get_parameter("modelLang")]
+            except KeyError:
+                print(ins + f"Language not declared.  Assuming language is '{pp_params['lang_str']}'.")
+                languages = ["en"]
+            tpme["transcript_language"] = languages
+            tpme["human_review_level"] = "machine-generated"
+            tpme["application_type"] = "ASR" 
+            tpme["application_provider"] = "Brandeis LLC"            
+            tpme["application_name"] = "whisper-wrapper"
+            try:
+                app_version = ww_view.metadata.app.split("/")[-1]
+            except:
+                app_version = "unknown"
+                problems.append("clams-app-ver-unknown")
+            tpme["application_version"] = app_version
+            tpme["application_repo"] = "https://github.com/clamsproject/app-whisper-wrapper"
+            tpme["inference_model"] = "whisper-" + ww_view.metadata.appConfiguration["modelSize"]
+            tpme["application_params"] = ww_view.metadata["appConfiguration"]
+
+            # Write out TPME JSON file
+            tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}"
+            mmif_tpme_fname = f'{item["asset_id"]}-tpme-{tpme_ts}.json'
+            mmif_tpme_fpath = artifacts_dir + "/" + artifact + "/" + mmif_tpme_fname
+
+            with open(mmif_tpme_fpath, "w") as file:
+                json.dump( tpme, file, indent=2 )
+
+            print(ins + "TPME for MMIF transcript saved: " + mmif_tpme_fpath)
 
 
     # 
     # create transcript in AAPB JSON format
     # 
-    artifact = "transcripts_aajson"
+    artifact = "transcript_aajson"
     if artifact in artifacts:
-
-        fname = item["asset_id"] + "-transcript.json"
-        fpath = artifacts_dir + "/" + artifact + "/" + fname
 
         toks_arr = proc_ww.make_toks_arr( usemmif )
         proc_ww.split_long_sts( toks_arr, 
@@ -153,21 +194,62 @@ def run_post( item:dict,
         
         sts_arr = proc_ww.make_sts_arr( toks_arr )
 
+        aajson_tr_fname = item["asset_id"] + "-transcript.json"
+        aajson_tr_fpath = artifacts_dir + "/" + artifact + "/" + aajson_tr_fname
         if len(sts_arr):
             proc_ww.export_aapbjson( sts_arr, 
-                                     fpath, 
+                                     aajson_tr_fpath, 
                                      asset_id=item["asset_id"] )
+            print(ins + "AAPB-Transcript-JSON transcript saved: " + aajson_tr_fpath)
+            dt = datetime.now()
+        else:
+            print(ins + "Problem: Found no sentences to analyze.")
+            print(ins + "Will not create AAPB-Transcript-JSON transcript.")
+            problems.append("aajson")
+            dt = None
 
+        # 
+        # create TPME for AAPB JSON transcript 
+        # 
+        artifact = "tpme_aajson"
+        if artifact in artifacts:
 
-    # 
-    # create TPME for AAPB JSON transcript 
-    # 
-    artifact = "tpme_aajson"
-    if artifact in artifacts:
-        pass
+            # Set values of TPME elements
+            tpme = {}
+            tpme["media_id"] = item["asset_id"]
+            tpme["transcript_id"] = aajson_tr_fname
+            tpme["modification_date"] = datetime.now().isoformat()
+            tpme["provider"] = TPME_PROVIDER
+            tpme["type"] = "transcript"
+            tpme["file_format"] = "AAPB-transcript-JSON"
+            tpme["features"] = { "time_aligned": True,
+                                 "max_line_chars": pp_params["max_line_chars"] }
+            try:
+                languages = [ww_view.metadata.get_parameter("modelLang")]
+            except KeyError:
+                print(ins + "Language not declared.  Assuming language is 'en'.")
+                languages = ["en"]
+            tpme["transcript_language"] = languages
+            tpme["human_review_level"] = "machine-generated"
+            tpme["application_type"] = "format-conversion" 
+            tpme["application_provider"] = "GBH Archives"            
+            tpme["application_name"] = "transcript_converter"
+            tpme["application_version"] = MODULE_VERSION
+            tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
+            tpme["application_params"] = pp_params
 
-        # make use of existing fname
+            # Write out TPME JSON file
+            if dt is not None:
+                tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}"
+                aajson_tpme_fname = f'{item["asset_id"]}-tpme-{tpme_ts}.json'
+                aajson_tpme_fpath = artifacts_dir + "/" + artifact + "/" + aajson_tpme_fname
 
+                with open(aajson_tpme_fpath, "w") as file:
+                    json.dump( tpme, file, indent=2 )
+
+                print(ins + "TPME for AAPB-transcript-JSON saved: " + aajson_tpme_fpath)
+
+                        
 
     # 
     # Finished with the whole postprocess
