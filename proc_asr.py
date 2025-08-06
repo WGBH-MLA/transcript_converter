@@ -18,7 +18,7 @@ from mmif import AnnotationTypes
 NO_SPACE_BEFORE = ['.', ',', '-', '/']
 
 # %%
-def get_ww_view_id(usemmif):
+def get_asr_view_id(usemmif):
     """
     Takes a MMIF string and returns the ID of the view from whisper-wrapper
     """
@@ -30,21 +30,21 @@ def get_ww_view_id(usemmif):
 
     candidate_views = [ v for v in tf_views if v in to_views and v in al_views ]
 
-    ww_views = [ v for v in candidate_views if v in st_views ]
+    asr_views = [ v for v in candidate_views if v in st_views ]
 
-    if len(ww_views):
+    if len(asr_views):
         # take the last view
-        ww_view_id = ww_views[-1].id
+        asr_view_id = asr_views[-1].id
     elif len(candidate_views):
         logging.warning("Warning: No candidate views contained Sentence annotations.")
-        ww_view_id = candidate_views[-1].id
+        asr_view_id = candidate_views[-1].id
     else:
-        ww_view_id = None
+        asr_view_id = None
 
-    return ww_view_id
+    return asr_view_id
 
 
-def tpme_from_mmif( usemmif, ww_view_id=None):
+def tpme_from_mmif( usemmif, asr_view_id=None):
     """
     Takes an MMIF string and a view ID and returns a dictionary of TPME elements
     and values.
@@ -53,7 +53,7 @@ def tpme_from_mmif( usemmif, ww_view_id=None):
 
 
 # %%
-def make_toks_arr( usemmif, ww_view_id=None):
+def make_toks_arr( usemmif, asr_view_id=None):
     """
     Takes a MMIF string and a view ID and returns a table of tokens and their times.
 
@@ -64,16 +64,16 @@ def make_toks_arr( usemmif, ww_view_id=None):
         3: id of associated sentence
     """
 
-    if ww_view_id is None:
-        ww_view_id = get_ww_view_id(usemmif)
+    if asr_view_id is None:
+        asr_view_id = get_asr_view_id(usemmif)
 
-    ww_view = usemmif.get_view_by_id(ww_view_id)
+    asr_view = usemmif.get_view_by_id(asr_view_id)
 
     # get relevant MMIF annotations
-    tfanns = ww_view.get_annotations(AnnotationTypes.TimeFrame)
-    toanns = ww_view.get_annotations("http://vocab.lappsgrid.org/Token")
-    alanns = ww_view.get_annotations(AnnotationTypes.Alignment)
-    stanns = ww_view.get_annotations("http://vocab.lappsgrid.org/Sentence")
+    tfanns = asr_view.get_annotations(AnnotationTypes.TimeFrame)
+    toanns = asr_view.get_annotations("http://vocab.lappsgrid.org/Token")
+    alanns = asr_view.get_annotations(AnnotationTypes.Alignment)
+    stanns = asr_view.get_annotations("http://vocab.lappsgrid.org/Sentence")
 
     # build lists from annotations
     tfs = [ [ ann.get_property("id"), 

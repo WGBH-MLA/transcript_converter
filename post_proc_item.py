@@ -21,13 +21,13 @@ from mmif import Mmif
 
 try:
     # if being run from higher level module
-    from . import proc_ww
+    from . import proc_asr
 except ImportError:
     # if run as stand-alone
-    import proc_ww
+    import proc_asr
 
 # Version notes
-MODULE_VERSION = "0.50"
+MODULE_VERSION = "0.60"
 
 # These are the defaults specific to routines defined in this module.
 POSTPROC_DEFAULTS = { "name": None,
@@ -36,11 +36,45 @@ POSTPROC_DEFAULTS = { "name": None,
                       "lang_str": "en" }
 
 VALID_ARTIFACTS = [ "transcript_aajson",
-                    "transcript_wwmmif",
-                    "tpme_wwmmif",
+                    "transcript_mmif",
+                    "tpme_mmif",
                     "tpme_aajson" ]
 
 TPME_PROVIDER = "GBH Archives"
+
+KNOWN_APPS = {
+    "http://apps.clams.ai/whisper-wrapper/v12": {
+        "application_name": "CLAMS whisper-wrapper",
+        "application_provider": "Brandeis Lab for Linguistics and Computation",
+        "application_repo": "https://github.com/clamsproject/app-whisper-wrapper",
+        "application_version": "v12",
+        "model_prefix": "whisper-",
+        "model_sizes": {
+            't': 'tiny', 
+            'b': 'base', 
+            's': 'small', 
+            'm': 'medium', 
+            'l': 'large', 
+            'l2': 'large-v2', 
+            'l3': 'large-v3',
+            'tu': "large-v3-turbo",
+            "turbo": "large-v3-turbo"
+        }
+    },
+    "http://apps.clams.ai/parakeet-wrapper/v1.0": {
+        "application_name": "CLAMS parakeet-wrapper",
+        "application_provider": "Brandeis Lab for Linguistics and Computation",
+        "application_repo": "https://github.com/clamsproject/app-parakeet-wrapper",
+        "application_version": "v1.0",
+        "model_prefix": "",
+        "model_sizes": {
+            '110m': "nvidia/parakeet-tdt_ctc-110m",
+            '0.6b': "nvidia/parakeet-tdt-0.6b-v2",
+            '1.1b': "nvidia/parakeet-tdt_ctc-1.1b"
+        }
+    }
+}
+
 
 def run_post( item:dict, 
               cf:dict, 
@@ -116,13 +150,13 @@ def run_post( item:dict,
     with open(mmif_path, "r") as file:
         mmif_str = file.read()
     usemmif = Mmif(mmif_str)
-    ww_view_id = proc_ww.get_ww_view_id(usemmif)
-    ww_view = usemmif.get_view_by_id( ww_view_id )
+    asr_view_id = proc_asr.get_asr_view_id(usemmif)
+    asr_view = usemmif.get_view_by_id( asr_view_id )
 
     # 
     # create transcript in MMIF format (as output by the CLAMS app)
     # 
-    artifact = "transcript_wwmmif"
+    artifact = "transcript_mmif"
     if artifact in artifacts:
 
         mmif_tr_fname = item["asset_id"] + "-transcript.mmif"
@@ -136,10 +170,10 @@ def run_post( item:dict,
         # 
         # create TPME for MMIF transcript 
         # 
-        artifact = "tpme_wwmmif"
+        artifact = "tpme_mmif"
         if artifact in artifacts:
 
-            iso_ts = ww_view.metadata["timestamp"]
+            iso_ts = asr_view.metadata["timestamp"]
             dt = datetime.fromisoformat(iso_ts)
 
             # Set values of TPME elements
@@ -152,24 +186,39 @@ def run_post( item:dict,
             tpme["file_format"] = "MMIF"
             tpme["features"] = { "time_aligned": True }
             try:
-                languages = [ww_view.metadata.get_parameter("modelLang")]
+                languages = [asr_view.metadata.get_parameter("modelLang")]
             except KeyError:
                 print(ins + f"Language not declared.  Assuming language is '{pp_params['lang_str']}'.")
                 languages = ["en"]
             tpme["transcript_language"] = languages
             tpme["human_review_level"] = "machine-generated"
             tpme["application_type"] = "ASR" 
-            tpme["application_provider"] = "Brandeis LLC"            
-            tpme["application_name"] = "whisper-wrapper"
-            try:
-                app_version = ww_view.metadata.app.split("/")[-1]
-            except:
-                app_version = "unknown"
-                problems.append("clams-app-ver-unknown")
-            tpme["application_version"] = app_version
-            tpme["application_repo"] = "https://github.com/clamsproject/app-whisper-wrapper"
-            tpme["inference_model"] = "whisper-" + ww_view.metadata.appConfiguration["modelSize"]
-            tpme["application_params"] = ww_view.metadata["appConfiguration"]
+
+            app = asr_view.metadata.app
+            tpme["application_id"] = app
+            model_size = asr_view.metadata.appConfiguration["modelSize"]
+            if app in KNOWN_APPS:
+                tpme["application_provider"] = KNOWN_APPS[app]["application_provider"]
+                tpme["application_name"] = KNOWN_APPS[app]["application_name"]
+                tpme["application_version"] = KNOWN_APPS[app]["application_version"]
+                tpme["application_repo"] = KNOWN_APPS[app]["application_repo"]
+                
+                if model_size in KNOWN_APPS[app]["model_sizes"]:
+                    tpme["inference_model"] = KNOWN_APPS[app]["model_prefix"] + KNOWN_APPS[app]["model_sizes"][model_size]
+                else:
+                    tpme["inference_model"] = KNOWN_APPS[app]["model_prefix"] + model_size
+            else:
+                problems.append("app-unknown")
+                tpme["application_provider"] = "unknown"
+                tpme["application_name"] = app
+                try:
+                    tpme["application_version"] = asr_view.metadata.app.split("/")[-1]
+                except:
+                    tpme["application_version"] = "unknown"
+                tpme["application_repo"] = "unknown"
+                tpme["inference_model"] = model_size
+
+            tpme["application_params"] = asr_view.metadata["appConfiguration"]
 
             # Write out TPME JSON file
             tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}"
@@ -188,16 +237,16 @@ def run_post( item:dict,
     artifact = "transcript_aajson"
     if artifact in artifacts:
 
-        toks_arr = proc_ww.make_toks_arr( usemmif )
-        proc_ww.split_long_sts( toks_arr, 
+        toks_arr = proc_asr.make_toks_arr( usemmif )
+        proc_asr.split_long_sts( toks_arr, 
                                 max_chars=pp_params["max_line_chars"]  )
         
-        sts_arr = proc_ww.make_sts_arr( toks_arr )
+        sts_arr = proc_asr.make_sts_arr( toks_arr )
 
         aajson_tr_fname = item["asset_id"] + "-transcript.json"
         aajson_tr_fpath = artifacts_dir + "/" + artifact + "/" + aajson_tr_fname
         if len(sts_arr):
-            proc_ww.export_aapbjson( sts_arr, 
+            proc_asr.export_aapbjson( sts_arr, 
                                      aajson_tr_fpath, 
                                      asset_id=item["asset_id"] )
             print(ins + "AAPB-Transcript-JSON transcript saved: " + aajson_tr_fpath)
@@ -225,7 +274,7 @@ def run_post( item:dict,
             tpme["features"] = { "time_aligned": True,
                                  "max_line_chars": pp_params["max_line_chars"] }
             try:
-                languages = [ww_view.metadata.get_parameter("modelLang")]
+                languages = [asr_view.metadata.get_parameter("modelLang")]
             except KeyError:
                 print(ins + "Language not declared.  Assuming language is 'en'.")
                 languages = ["en"]
