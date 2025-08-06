@@ -219,6 +219,7 @@ def run_post( item:dict,
                 tpme["inference_model"] = model_size
 
             tpme["application_params"] = asr_view.metadata["appConfiguration"]
+            tpme["processing_note"] = "clams-kitchen job ID: " + cf["job_id"]
 
             # Write out TPME JSON file
             tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}"
@@ -286,6 +287,7 @@ def run_post( item:dict,
             tpme["application_version"] = MODULE_VERSION
             tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
             tpme["application_params"] = pp_params
+            tpme["processing_note"] = "clams-kitchen job ID: " + cf["job_id"]
 
             # Write out TPME JSON file
             if dt is not None:
