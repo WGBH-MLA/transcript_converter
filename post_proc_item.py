@@ -37,8 +37,10 @@ POSTPROC_DEFAULTS = { "name": None,
 
 VALID_ARTIFACTS = [ "transcript_aajson",
                     "transcript_mmif",
+                    "transcript_text",
                     "tpme_mmif",
-                    "tpme_aajson" ]
+                    "tpme_aajson",
+                    "tpme_text" ]
 
 TPME_PROVIDER = "GBH Archives"
 
@@ -180,16 +182,17 @@ def run_post( item:dict,
             tpme = {}
             tpme["media_id"] = item["asset_id"]
             tpme["transcript_id"] = mmif_tr_fname
+            tpme["parent_transcript_id"] = ""
             tpme["modification_date"] = iso_ts
             tpme["provider"] = TPME_PROVIDER
             tpme["type"] = "transcript"
             tpme["file_format"] = "MMIF"
             tpme["features"] = { "time_aligned": True }
             try:
-                languages = [asr_view.metadata.get_parameter("modelLang")]
+                languages = [ asr_view.metadata.get_parameter("modelLang") ]
             except KeyError:
                 print(ins + f"Language not declared.  Assuming language is '{pp_params['lang_str']}'.")
-                languages = ["en"]
+                languages = [ "en" ]
             tpme["transcript_language"] = languages
             tpme["human_review_level"] = "machine-generated"
             tpme["application_type"] = "ASR" 
@@ -233,6 +236,78 @@ def run_post( item:dict,
 
 
     # 
+    # create transcript in plain text format
+    # 
+    artifact = "transcript_text"
+    if artifact in artifacts:
+
+        toks_arr = proc_asr.make_toks_arr( usemmif )
+        sts_arr = proc_asr.make_sts_arr( toks_arr )
+
+        text_tr_fname = item["asset_id"] + "-transcript.txt"
+        text_tr_fpath = artifacts_dir + "/" + artifact + "/" + text_tr_fname
+
+        # Create a plain text transcript with line breaks between "sentences".
+        text = ""
+        if len(sts_arr):
+            for st in sts_arr:
+                if isinstance(st[2], str) and bool(st[2]):
+                    text += (st[2] + "\n")
+            with open( text_tr_fpath, "w" ) as file:
+                file.write( text )
+
+            print(ins + "Plain text transcript saved: " + text_tr_fpath)
+            dt = datetime.now()
+        else:
+            print(ins + "Problem: Found no sentences to analyze.")
+            print(ins + "Will not create a plain text transcript.")
+            problems.append("plain-text")
+            dt = None
+
+        # 
+        # create TPME for plain text transcript 
+        # 
+        artifact = "tpme_text"
+        if artifact in artifacts:
+
+            # Set values of TPME elements
+            tpme = {}
+            tpme["media_id"] = item["asset_id"]
+            tpme["transcript_id"] = text_tr_fname
+            tpme["parent_transcript_id"] = mmif_tr_fname
+            tpme["modification_date"] = datetime.now().isoformat()
+            tpme["provider"] = TPME_PROVIDER
+            tpme["type"] = "transcript"
+            tpme["file_format"] = "text/plain"
+            tpme["features"] = { }
+            try:
+                languages = [ asr_view.metadata.get_parameter("modelLang") ]
+            except KeyError:
+                print(ins + "Language not declared.  Assuming language is 'en'.")
+                languages = [ "en" ]
+            tpme["transcript_language"] = languages
+            tpme["human_review_level"] = "machine-generated"
+            tpme["application_type"] = "format-conversion" 
+            tpme["application_provider"] = "GBH Archives"            
+            tpme["application_name"] = "transcript_converter"
+            tpme["application_version"] = MODULE_VERSION
+            tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
+            tpme["application_params"] = pp_params
+            tpme["processing_note"] = "clams-kitchen job ID: " + cf["job_id"]
+
+            # Write out TPME JSON file
+            if dt is not None:
+                tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}"
+                text_tpme_fname = f'{item["asset_id"]}-tpme-{tpme_ts}.json'
+                text_tpme_fpath = artifacts_dir + "/" + artifact + "/" + text_tpme_fname
+
+                with open(text_tpme_fpath, "w") as file:
+                    json.dump( tpme, file, indent=2 )
+
+                print(ins + "TPME for plain text transcript saved: " + text_tpme_fpath)
+
+
+    # 
     # create transcript in AAPB JSON format
     # 
     artifact = "transcript_aajson"
@@ -268,6 +343,7 @@ def run_post( item:dict,
             tpme = {}
             tpme["media_id"] = item["asset_id"]
             tpme["transcript_id"] = aajson_tr_fname
+            tpme["parent_transcript_id"] = mmif_tr_fname
             tpme["modification_date"] = datetime.now().isoformat()
             tpme["provider"] = TPME_PROVIDER
             tpme["type"] = "transcript"
@@ -275,10 +351,10 @@ def run_post( item:dict,
             tpme["features"] = { "time_aligned": True,
                                  "max_line_chars": pp_params["max_line_chars"] }
             try:
-                languages = [asr_view.metadata.get_parameter("modelLang")]
+                languages = [ asr_view.metadata.get_parameter("modelLang") ]
             except KeyError:
                 print(ins + "Language not declared.  Assuming language is 'en'.")
-                languages = ["en"]
+                languages = [ "en" ]
             tpme["transcript_language"] = languages
             tpme["human_review_level"] = "machine-generated"
             tpme["application_type"] = "format-conversion" 
@@ -300,7 +376,6 @@ def run_post( item:dict,
 
                 print(ins + "TPME for AAPB-transcript-JSON saved: " + aajson_tpme_fpath)
 
-                        
 
     # 
     # Finished with the whole postprocess
