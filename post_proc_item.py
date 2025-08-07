@@ -16,6 +16,7 @@ as long as they are defined in one of the option defauls global variables.
 
 import json
 from datetime import datetime
+import time
 
 from mmif import Mmif
 
@@ -225,7 +226,7 @@ def run_post( item:dict,
             tpme["processing_note"] = "clams-kitchen job ID: " + cf["job_id"]
 
             # Write out TPME JSON file
-            tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}"
+            tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}-{dt.microsecond:06d}"
             mmif_tpme_fname = f'{item["asset_id"]}-tpme-{tpme_ts}.json'
             mmif_tpme_fpath = artifacts_dir + "/" + artifact + "/" + mmif_tpme_fname
 
@@ -240,6 +241,9 @@ def run_post( item:dict,
     # 
     artifact = "transcript_text"
     if artifact in artifacts:
+
+        # ensure no timestamp collisions
+        time.sleep(0.01)
 
         toks_arr = proc_asr.make_toks_arr( usemmif )
         sts_arr = proc_asr.make_sts_arr( toks_arr )
@@ -297,7 +301,7 @@ def run_post( item:dict,
 
             # Write out TPME JSON file
             if dt is not None:
-                tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}"
+                tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}-{dt.microsecond:06d}"
                 text_tpme_fname = f'{item["asset_id"]}-tpme-{tpme_ts}.json'
                 text_tpme_fpath = artifacts_dir + "/" + artifact + "/" + text_tpme_fname
 
@@ -312,6 +316,9 @@ def run_post( item:dict,
     # 
     artifact = "transcript_aajson"
     if artifact in artifacts:
+
+        # ensure no timestamp collisions
+        time.sleep(0.01)
 
         toks_arr = proc_asr.make_toks_arr( usemmif )
         proc_asr.split_long_sts( toks_arr, 
@@ -367,7 +374,7 @@ def run_post( item:dict,
 
             # Write out TPME JSON file
             if dt is not None:
-                tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}"
+                tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}-{dt.microsecond:06d}"
                 aajson_tpme_fname = f'{item["asset_id"]}-tpme-{tpme_ts}.json'
                 aajson_tpme_fpath = artifacts_dir + "/" + artifact + "/" + aajson_tpme_fname
 
