@@ -30,7 +30,7 @@ except ImportError:
     from known_apps import KNOWN_APPS
 
 # Version notes
-MODULE_VERSION = "0.60"
+MODULE_VERSION = "0.61"
 
 # These are the defaults specific to routines defined in this module.
 POSTPROC_DEFAULTS = { "name": None,
@@ -152,7 +152,7 @@ def run_post( item:dict,
             tpme = {}
             tpme["media_id"] = item["asset_id"]
             tpme["transcript_id"] = mmif_tr_fname
-            tpme["parent_transcript_id"] = ""
+            tpme["parent_transcript_id"] = item["mmif_files"][-1]
             tpme["modification_date"] = iso_ts
             tpme["provider"] = TPME_PROVIDER
             tpme["type"] = "transcript"
