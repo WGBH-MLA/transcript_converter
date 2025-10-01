@@ -158,14 +158,17 @@ def run_post( item:dict,
             tpme["type"] = "transcript"
             tpme["file_format"] = "MMIF"
             tpme["features"] = { "time_aligned": True }
-            try:
-                languages = [ asr_view.metadata.get_parameter("modelLang") ]
-            except KeyError:
-                print(ins + f"Language not declared.  Assuming language is '{pp_params['lang_str']}'.")
-                languages = [ "en" ]
-            tpme["transcript_language"] = languages
             tpme["human_review_level"] = "machine-generated"
             tpme["application_type"] = "ASR" 
+
+            try:
+                model_lang = asr_view.metadata.appConfiguration["modelLang"] 
+                languages = [ model_lang ]
+            except KeyError:
+                model_lang = None
+                print(ins + f"Language not declared.  Assuming language is '{pp_params['lang_str']}'.")
+                languages = [ pp_params['lang_str'] ]
+            tpme["transcript_language"] = languages
 
             app = asr_view.metadata.app
             tpme["application_id"] = app
@@ -175,11 +178,20 @@ def run_post( item:dict,
                 tpme["application_name"] = KNOWN_APPS[app]["application_name"]
                 tpme["application_version"] = KNOWN_APPS[app]["application_version"]
                 tpme["application_repo"] = KNOWN_APPS[app]["application_repo"]
-                
-                if model_size in KNOWN_APPS[app]["model_sizes"]:
-                    tpme["inference_model"] = KNOWN_APPS[app]["model_prefix"] + KNOWN_APPS[app]["model_sizes"][model_size]
-                else:
-                    tpme["inference_model"] = KNOWN_APPS[app]["model_prefix"] + model_size
+
+                try:
+                    model_size = KNOWN_APPS[app]["model_size_aliases"][model_size]
+                except KeyError:
+                    model_size = model_size
+                try:
+                    model_name = KNOWN_APPS[app]["implied_lang_specific_models"][(model_lang, model_size)]
+                except KeyError:
+                    model_name = model_size
+                try:
+                    tpme["inference_model"] = KNOWN_APPS[app]["model_prefix"] + model_name
+                except KeyError:
+                    tpme["inference_model"] = model_name
+
             else:
                 problems.append("app-unknown")
                 tpme["application_provider"] = "unknown"

@@ -16,7 +16,7 @@ KNOWN_APPS = {
         "application_repo": "https://github.com/clamsproject/app-whisper-wrapper",
         "application_version": "v12",
         "model_prefix": "openai/whisper-",
-        "model_sizes": {
+        "model_size_aliases": {
             't': 'tiny', 
             'b': 'base', 
             's': 'small', 
@@ -26,6 +26,12 @@ KNOWN_APPS = {
             'l3': 'large-v3',
             'tu': "large-v3-turbo",
             "turbo": "large-v3-turbo"
+        },
+        "implied_lang_specific_models": {
+            ("en", "tiny"): "tiny.en",
+            ("en", "base"): "base.en",
+            ("en", "small"): "small.en",
+            ("en", "medium"): "medium.en"
         }
     },
     "http://apps.clams.ai/whisper-wrapper/v13": {
@@ -34,7 +40,7 @@ KNOWN_APPS = {
         "application_repo": "https://github.com/clamsproject/app-whisper-wrapper",
         "application_version": "v13",
         "model_prefix": "openai/whisper-",
-        "model_sizes": {
+        "model_size_aliases": {
             't': 'tiny', 
             'b': 'base', 
             's': 'small', 
@@ -44,6 +50,12 @@ KNOWN_APPS = {
             'l3': 'large-v3',
             'tu': "large-v3-turbo",
             "turbo": "large-v3-turbo"
+        },
+        "implied_lang_specific_models": {
+            ("en", "tiny"): "tiny.en",
+            ("en", "base"): "base.en",
+            ("en", "small"): "small.en",
+            ("en", "medium"): "medium.en"
         }
     },
     "http://apps.clams.ai/parakeet-wrapper/v1.0": {
@@ -52,7 +64,7 @@ KNOWN_APPS = {
         "application_repo": "https://github.com/clamsproject/app-parakeet-wrapper",
         "application_version": "v1.0",
         "model_prefix": "nvidia/parakeet-",
-        "model_sizes": {
+        "model_size_aliases": {
             '110m': "tdt_ctc-110m",
             '0.6b': "tdt-0.6b-v2",
             '1.1b': "tdt_ctc-1.1b"
