@@ -15,7 +15,25 @@ KNOWN_APPS = {
         "application_provider": "Brandeis Lab for Linguistics and Computation",
         "application_repo": "https://github.com/clamsproject/app-whisper-wrapper",
         "application_version": "v12",
-        "model_prefix": "whisper-",
+        "model_prefix": "openai/whisper-",
+        "model_sizes": {
+            't': 'tiny', 
+            'b': 'base', 
+            's': 'small', 
+            'm': 'medium', 
+            'l': 'large', 
+            'l2': 'large-v2', 
+            'l3': 'large-v3',
+            'tu': "large-v3-turbo",
+            "turbo": "large-v3-turbo"
+        }
+    },
+    "http://apps.clams.ai/whisper-wrapper/v13": {
+        "application_name": "CLAMS whisper-wrapper",
+        "application_provider": "Brandeis Lab for Linguistics and Computation",
+        "application_repo": "https://github.com/clamsproject/app-whisper-wrapper",
+        "application_version": "v13",
+        "model_prefix": "openai/whisper-",
         "model_sizes": {
             't': 'tiny', 
             'b': 'base', 
@@ -33,11 +51,11 @@ KNOWN_APPS = {
         "application_provider": "Brandeis Lab for Linguistics and Computation",
         "application_repo": "https://github.com/clamsproject/app-parakeet-wrapper",
         "application_version": "v1.0",
-        "model_prefix": "",
+        "model_prefix": "nvidia/parakeet-",
         "model_sizes": {
-            '110m': "nvidia/parakeet-tdt_ctc-110m",
-            '0.6b': "nvidia/parakeet-tdt-0.6b-v2",
-            '1.1b': "nvidia/parakeet-tdt_ctc-1.1b"
+            '110m': "tdt_ctc-110m",
+            '0.6b': "tdt-0.6b-v2",
+            '1.1b': "tdt_ctc-1.1b"
         }
     }
 }
