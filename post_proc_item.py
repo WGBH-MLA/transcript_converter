@@ -30,7 +30,7 @@ except ImportError:
     from known_apps import KNOWN_APPS
 
 # Version notes
-MODULE_VERSION = "0.61"
+MODULE_VERSION = "0.62"
 
 # These are the defaults specific to routines defined in this module.
 POSTPROC_DEFAULTS = { "name": None,
