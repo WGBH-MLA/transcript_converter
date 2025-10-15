@@ -302,10 +302,10 @@ def run_post( item:dict,
         time.sleep(0.01)
 
         toks_arr = proc_asr.make_toks_arr( usemmif )
-        proc_asr.split_long_sts( toks_arr, 
-                                max_chars=pp_params["max_line_chars"]  )
+        toks_arr_split = proc_asr.split_long_sts( toks_arr, 
+                                                  max_chars=pp_params["max_line_chars"]  )
         
-        sts_arr = proc_asr.make_sts_arr( toks_arr )
+        sts_arr = proc_asr.make_sts_arr( toks_arr_split )
 
         aajson_tr_fname = item["asset_id"] + "-transcript.json"
         aajson_tr_fpath = artifacts_dir + "/" + artifact + "/" + aajson_tr_fname

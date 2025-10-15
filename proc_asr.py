@@ -143,24 +143,28 @@ def make_toks_arr( usemmif, asr_view_id=None):
 
 
 # %%
-def split_long_sts( toks_arr, 
+def split_long_sts( toks_arr_in, 
                     max_chars:int=80,
                     max_toks_backtrack:int=3,
                     min_toks_dangled:int=3 ):
     """
-    Re-labels sentences in an array of tokens to limit the manximum length of
-    a sentence.  Since "sentences" here are not necessarily sentences but rather
-    wherever Whisper made segments (effectively among lines), this function is 
-    useful for limiting the maximum line length.
-
-    Note that the function operates via side-effects.  The original `toks_arr` 
-    is altered.
+    Splitting long lines of the token array is simply a matter of reassigning 
+    tokens to different sentences.  This function re-assigns seentece labels to 
+    limit the manximum length of a sentence.  
     
+    Since "sentences" here are not necessarily sentences but rather wherever 
+    Whisper created segments (effectively among lines), this function is useful 
+    for limiting the maximum line length.
+
     Strategy:
-      - Take a token arrary.
+      - Take a token arrary and make a deep copy of it.
       - Analyze the sentences, to look for ones that are too long. 
-      - If a sentence is too long, try to split it at a reasonable place.
-        (Operate recursively for very long sentences)
+      - If a sentence is too long, split it into to parts by finding a suitable 
+        split point to make the first part of the sentence shorter than the max
+        length.  Then assignging a new sentence ID to tokens after that.
+      - But note that the remainder may itself be too long.  So run the function
+        again on just the part of the array corresponding to the sentence in focus.
+        (This is the recursion step.)
 
     Heuristics for split points:
       - Aim for lines near but not above the max.
@@ -181,6 +185,14 @@ def split_long_sts( toks_arr,
     # Some hard-coded characters and tokens for splitting heuristics
     splitting_punc = ['.', ',']
     common_abbrevs = ["Mr.", "Mrs.", "Ms.", "Dr.", "Sr.", "Sra.", "Srta."]
+
+    # deep copy input token array
+    toks_arr = []
+    for r_in in toks_arr_in:
+        r = []
+        for i in r_in:
+            r.append(i)
+        toks_arr.append(r)
 
     # Sanitize the array of tokens limiting character length of each token.
     # (Whisper has been known to output crazy long tokens, but tokens needs to be
@@ -243,9 +255,17 @@ def split_long_sts( toks_arr,
             for t in sttoks_arr[(lasti+1):]:
                 t[3] = t[3]+"_x"
             
-            # Recursion step: Run function again now that one relabling is done.
-            # 
-            split_long_sts(sttoks_arr, max_chars, max_toks_backtrack, min_toks_dangled)
+            #
+            # Recursion step: In case the part after the cut-off is also too long, 
+            # run function again on just the part of the array we're focused on.
+            #
+            sttoks_arr_split = split_long_sts(sttoks_arr, max_chars, max_toks_backtrack, min_toks_dangled)
+            # copy the results of the new split back into this array
+            for i, r in enumerate(sttoks_arr):
+                r = sttoks_arr_split[i]
+
+    # return the new array that has been relabeled
+    return toks_arr
 
 
 
