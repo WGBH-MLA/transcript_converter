@@ -151,14 +151,16 @@ def split_long_sts( toks_arr,
     Re-labels sentences in an array of tokens to limit the manximum length of
     a sentence.  Since "sentences" here are not necessarily sentences but rather
     wherever Whisper made segments (effectively among lines), this function is 
-    useful for limiting the maximum line length
+    useful for limiting the maximum line length.
+
+    Note that the function operates via side-effects.  The original `toks_arr` 
+    is altered.
     
     Strategy:
       - Take a token arrary.
       - Analyze the sentences, to look for ones that are too long. 
       - If a sentence is too long, try to split it at a reasonable place.
         (Operate recursively for very long sentences)
-      - Return a token array with updated sentence labels.
 
     Heuristics for split points:
       - Aim for lines near but not above the max.
@@ -179,6 +181,14 @@ def split_long_sts( toks_arr,
     # Some hard-coded characters and tokens for splitting heuristics
     splitting_punc = ['.', ',']
     common_abbrevs = ["Mr.", "Mrs.", "Ms.", "Dr.", "Sr.", "Sra.", "Srta."]
+
+    # Sanitize the array of tokens limiting character length of each token.
+    # (Whisper has been known to output crazy long tokens, but tokens needs to be
+    # be shorter than the lines, since we're splitting between tokens.)
+    max_tok_chars = max_chars - 3
+    for r in toks_arr:
+        if len(r[2]) > max_tok_chars:
+            r[2] = r[2][:max_tok_chars]
 
     # build ordered lists of sentence ids
     st_ids = []
