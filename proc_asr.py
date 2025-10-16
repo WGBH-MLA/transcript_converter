@@ -14,13 +14,17 @@ from mmif import Mmif
 from mmif import AnnotationTypes
 
 
+# Version number
+MODULE_VERSION = "0.64"
+
+
 # list of tokens which need not be preceded by a space when added to a sentence string
 NO_SPACE_BEFORE = ['.', ',', '-', '/']
 
 # %%
-def get_asr_view_id(usemmif):
+def get_asr_view_id( usemmif:Mmif ) -> str:
     """
-    Takes a MMIF string and returns the ID of the view from whisper-wrapper
+    Takes a MMIF object and returns the ID of the view from whisper-wrapper
     """
 
     tf_views = usemmif.get_all_views_contain(AnnotationTypes.TimeFrame)
@@ -53,9 +57,9 @@ def tpme_from_mmif( usemmif, asr_view_id=None):
 
 
 # %%
-def make_toks_arr( usemmif, asr_view_id=None):
+def make_toks_arr( usemmif:Mmif, asr_view_id:str=None ) -> list :
     """
-    Takes a MMIF string and a view ID and returns a table of tokens and their times.
+    Takes a MMIF object and a view ID and returns a table of tokens and their times.
 
     Columns:
         0: start time in ms
@@ -143,10 +147,10 @@ def make_toks_arr( usemmif, asr_view_id=None):
 
 
 # %%
-def split_long_sts( toks_arr_in, 
+def split_long_sts( toks_arr_in:list, 
                     max_chars:int=80,
                     max_toks_backtrack:int=3,
-                    min_toks_dangled:int=3 ):
+                    min_toks_dangled:int=3 ) -> list:
     """
     Splitting long lines of the token array is simply a matter of reassigning 
     tokens to different sentences.  This function re-assigns seentece labels to 
@@ -270,7 +274,7 @@ def split_long_sts( toks_arr_in,
 
 
 # %%
-def make_sts_arr( toks_arr ):
+def make_sts_arr( toks_arr:list ) -> list:
     """
     Takes the token array and combines tokens into their sentences.
     """    

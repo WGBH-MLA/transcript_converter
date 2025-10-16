@@ -29,8 +29,8 @@ except ImportError:
     import proc_asr
     from known_apps import KNOWN_APPS
 
-# Version notes
-MODULE_VERSION = "0.63"
+# Version number
+MODULE_VERSION = proc_asr.MODULE_VERSION
 
 # These are the defaults specific to routines defined in this module.
 POSTPROC_DEFAULTS = { "name": None,
@@ -50,7 +50,8 @@ TPME_PROVIDER = "GBH Archives"
 
 def run_post( item:dict, 
               cf:dict, 
-              params:dict ):
+              params:dict 
+              ) -> tuple[list, list, list] :
     """
     Calls particular methods to run post processing for the item according to the 
     configuration specified in the `cf` and `params` dictionaries.
