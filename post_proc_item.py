@@ -227,7 +227,7 @@ def run_post( item:dict,
         # ensure no timestamp collisions
         time.sleep(0.01)
 
-        toks_arr = proc_asr.make_toks_arr( usemmif )
+        toks_arr = proc_asr.make_toks_arr( asr_view )
         sts_arr = proc_asr.make_sts_arr( toks_arr )
 
         text_tr_fname = item["asset_id"] + "-transcript.txt"
@@ -302,7 +302,7 @@ def run_post( item:dict,
         # ensure no timestamp collisions
         time.sleep(0.01)
 
-        toks_arr = proc_asr.make_toks_arr( usemmif )
+        toks_arr = proc_asr.make_toks_arr( asr_view )
         toks_arr_split = proc_asr.split_long_sts( toks_arr, 
                                                   max_chars=pp_params["max_line_chars"]  )
         

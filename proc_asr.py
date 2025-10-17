@@ -1,12 +1,11 @@
 """
-proc_www.py
+proc_asr.py
 
 Defines functions that perform processing on MMIF output from whisper-wrapper.
 """
 # %%
-import json
 import logging
-from pprint import pprint
+import json
 
 import pandas as pd
 
@@ -53,13 +52,13 @@ def tpme_from_mmif( usemmif, asr_view_id=None):
     Takes an MMIF string and a view ID and returns a dictionary of TPME elements
     and values.
     """
-    pass
+    raise NotImplementedError("tpme_from_mmif is not yet implemented")
 
 
 # %%
-def make_toks_arr( usemmif:Mmif, asr_view_id:str=None ) -> list :
+def make_toks_arr( asr_view ) -> list :
     """
-    Takes a MMIF object and a view ID and returns a table of tokens and their times.
+    Takes a MMIF view object and returns a table of tokens and their times.
 
     Columns:
         0: start time in ms
@@ -67,11 +66,6 @@ def make_toks_arr( usemmif:Mmif, asr_view_id:str=None ) -> list :
         2: token string
         3: id of associated sentence
     """
-
-    if asr_view_id is None:
-        asr_view_id = get_asr_view_id(usemmif)
-
-    asr_view = usemmif.get_view_by_id(asr_view_id)
 
     # get relevant MMIF annotations
     tfanns = asr_view.get_annotations(AnnotationTypes.TimeFrame)
@@ -331,7 +325,10 @@ def export_aapbjson( sts_arr,
                 "text": st[2],
                 "speaker_id": i+1 } )
 
-    with open( fpath, "w") as file:
-        json.dump( d, file, indent=2 )
+    if fpath:
+        with open( fpath, "w") as file:
+            json.dump( d, file, indent=2 )
+    else:
+        return json.dumps(d, indent=2)
 
 
