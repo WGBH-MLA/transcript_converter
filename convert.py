@@ -6,7 +6,6 @@ Top level module for MMIF-origin transcript conversion
 
 import json
 from datetime import datetime
-import time
 
 from mmif import Mmif
 
@@ -25,10 +24,13 @@ MODULE_VERSION = proc_asr.MODULE_VERSION
 # Default `provider` for TPME
 DEFAULT_TPME_PROVIDER = "GBH Archives"
 
+
 def mmif_to_all( mmif_str:str,
-                 media_id:str = None,
+                 asset_id:str = None,
                  mmif_filename:str = None,
+                 languages:list = [],
                  tpme_provider:str = DEFAULT_TPME_PROVIDER,
+                 max_line_chars:int = 100,
                  processing_note:str = ""
                  ) -> dict :
     """
@@ -46,34 +48,117 @@ def mmif_to_all( mmif_str:str,
     asr_view = usemmif.get_view_by_id(asr_view_id)
 
     # try to derive a media ID if not given
-    if not media_id:
+    if not asset_id:
         try:
             document = asr_view.get_documents()[0]
             doc_loc = document["properties"]["location"]
             filename = doc_loc.split("/")[-1]
-            media_id = filename.split(".")[0]
+            asset_id = filename.split(".")[0]
         except Exception as e:
             print("No media ID given and could not derive it from MMIF document location.")
             print("Encountered exception:\n", e)
     
+    # make up the canonical MMIF filename, if not provided
+    if not mmif_filename:
+        mmif_filename = asset_id + "-transcript.mmif"
+
+    if not languages:
+        try:
+            model_lang = asr_view.metadata.appConfiguration["modelLang"] 
+            languages = [ model_lang ]
+        except KeyError:
+            languages = []
+
     tdict = {}
 
-    tdict["tpme_mmif"] = make_tpme_mmif(asr_view, 
-                                        media_id, 
-                                        mmif_filename, 
-                                        tpme_provider, 
-                                        processing_note)
+    tdict["tpme_mmif"] = make_tpme_mmif( asr_view, 
+                                         asset_id, 
+                                         mmif_filename, 
+                                         tpme_provider, 
+                                         languages,
+                                         processing_note )
 
+    tdict["transcript_aajson"] = make_transcript_aajson( asr_view, 
+                                                         asset_id, 
+                                                         languages,
+                                                         max_line_chars )
+
+    tdict["tpme_aajson"] = make_tpme_aajson( asr_view, 
+                                             asset_id, 
+                                             mmif_filename, 
+                                             tpme_provider, 
+                                             languages,
+                                             max_line_chars,
+                                             processing_note )
+
+    tdict["transcript_text"] = make_transcript_text( asr_view )
+
+    tdict["tpme_text"] = make_tpme_text( asr_view, 
+                                         asset_id, 
+                                         mmif_filename, 
+                                         tpme_provider,
+                                         languages, 
+                                         processing_note)
 
     return tdict
 
 
 
+def make_transcript_aajson( asr_view, 
+                            asset_id:str, 
+                            languages:list[str],
+                            max_line_chars:int
+                            ) -> str:
+    
+    # process and split tokens array
+    toks_arr = proc_asr.make_toks_arr(asr_view)
+    toks_arr_split = proc_asr.split_long_sts(toks_arr, max_chars=max_line_chars)
+    sts_arr = proc_asr.make_sts_arr(toks_arr_split)
+
+    # create a semicolon-separated language string
+    language = ";".join(languages)
+
+    # create AAPB JSON structure
+    d = {}
+    d["id"] = asset_id
+    d["language"] = language
+    d["parts"] = []
+
+    # add a new "part" for every row of the sentence array
+    for i, st in enumerate(sts_arr):
+        d["parts"].append( { 
+            "start_time": st[0] / 1000,
+            "end_time": st[1] / 1000,
+            "text": st[2],
+            "speaker_id": i+1 } )
+
+    text = json.dumps(d, indent=2)
+    return text
+
+
+
+def make_transcript_text( asr_view ) -> str:
+    
+    # process tokens array
+    toks_arr = proc_asr.make_toks_arr(asr_view)
+    sts_arr = proc_asr.make_sts_arr(toks_arr)
+
+    # build one big string of text
+    text = ""
+    if len(sts_arr):
+        for st in sts_arr:
+            if isinstance(st[2], str):
+                text += (st[2] + "\n")
+
+    return text
+
+
 
 def make_tpme_mmif( asr_view, 
-                    media_id:str, 
+                    asset_id:str, 
                     mmif_filename:str, 
                     tpme_provider:str, 
+                    languages:list[str],
                     processing_note:str 
                     ) -> str:
 
@@ -81,7 +166,7 @@ def make_tpme_mmif( asr_view,
 
     # Set values of TPME elements
     tpme = {}
-    tpme["media_id"] = media_id
+    tpme["media_id"] = asset_id
     tpme["transcript_id"] = mmif_filename
     tpme["modification_date"] = iso_ts
     tpme["provider"] = tpme_provider
@@ -90,46 +175,124 @@ def make_tpme_mmif( asr_view,
     tpme["features"] = { "time_aligned": True }
     tpme["human_review_level"] = "machine-generated"
     tpme["application_type"] = "ASR" 
-
-    try:
-        model_lang = asr_view.metadata.appConfiguration["modelLang"] 
-        languages = [ model_lang ]
-    except KeyError:
-        languages = []
     tpme["transcript_language"] = languages
 
     app = asr_view.metadata.app
     tpme["application_id"] = app
-    model_size = asr_view.metadata.appConfiguration["modelSize"]
+    try:
+        model_size = asr_view.metadata.appConfiguration["modelSize"]
+    except KeyError:
+        model_size = ""
+    try:    
+        model_lang = asr_view.metadata.appConfiguration["modelLang"] 
+    except KeyError:
+        model_lang = ""
+
     if app in KNOWN_APPS:
         tpme["application_provider"] = KNOWN_APPS[app]["application_provider"]
         tpme["application_name"] = KNOWN_APPS[app]["application_name"]
         tpme["application_version"] = KNOWN_APPS[app]["application_version"]
         tpme["application_repo"] = KNOWN_APPS[app]["application_repo"]
+
+        # re-assign the model size if an alias was used
         try:
             model_size = KNOWN_APPS[app]["model_size_aliases"][model_size]
         except KeyError:
-            model_size = model_size
+            pass
+        
+        # if the model was implied by both size and language assign model name accordingly.
         try:
             model_name = KNOWN_APPS[app]["implied_lang_specific_models"][(model_lang, model_size)]
         except KeyError:
             model_name = model_size
+
+        # add a prefix if defined
         try:
             tpme["inference_model"] = KNOWN_APPS[app]["model_prefix"] + model_name
         except KeyError:
             tpme["inference_model"] = model_name
+
     else:
-        tpme["application_provider"] = "unknown"
+        tpme["application_provider"] = "UNKNOWN"
         tpme["application_name"] = app
         try:
             tpme["application_version"] = asr_view.metadata.app.split("/")[-1]
         except:
-            tpme["application_version"] = "unknown"
-        tpme["application_repo"] = "unknown"
+            tpme["application_version"] = "UNKNOWN"
+        tpme["application_repo"] = "UNKNOWN"
         tpme["inference_model"] = model_size
 
     tpme["application_params"] = asr_view.metadata["appConfiguration"]
     tpme["processing_note"] = processing_note
+
+    text = json.dumps(tpme, indent=2)
+    return text
+
+
+
+def make_tpme_aajson( asr_view, 
+                      asset_id:str, 
+                      mmif_filename:str, 
+                      tpme_provider:str,
+                      languages:list[str],
+                      max_line_chars:int,
+                      processing_note:str 
+                      ) -> str:
+    
+    tpme = {}
+    tpme["media_id"] = asset_id
+    tpme["transcript_id"] = f"{asset_id}-transcript.json"
+    tpme["parent_transcript_id"] = mmif_filename
+    tpme["modification_date"] = datetime.now().isoformat()
+    tpme["provider"] = tpme_provider
+    tpme["type"] = "transcript"
+    tpme["file_format"] = "AAPB-transcript-JSON"
+    tpme["features"] = { "time_aligned": True, "max_line_chars": max_line_chars }
+    tpme["transcript_language"] = languages
+    tpme["human_review_level"] = "machine-generated"
+    tpme["application_type"] = "format-conversion"
+    tpme["application_provider"] = "GBH Archives"
+    tpme["application_name"] = "transcript_converter"
+    tpme["application_version"] = MODULE_VERSION
+    tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
+    tpme["application_params"] = {"max_line_chars": max_line_chars}
+    tpme["processing_note"] = processing_note
+    
+    text = json.dumps(tpme, indent=2)
+    return text
+
+
+
+def make_tpme_text( asr_view, 
+                    asset_id:str, 
+                    mmif_filename:str, 
+                    tpme_provider:str, 
+                    languages:list[str],
+                    processing_note:str
+                    ) -> str:
+
+    tpme = {}
+    tpme["media_id"] = asset_id
+    tpme["transcript_id"] = f"{asset_id}-transcript.txt"
+    tpme["parent_transcript_id"] = mmif_filename
+    tpme["modification_date"] = datetime.now().isoformat()
+    tpme["provider"] = tpme_provider
+    tpme["type"] = "transcript"
+    tpme["file_format"] = "text/plain"
+    tpme["features"] = { }
+    tpme["transcript_language"] = languages
+    tpme["human_review_level"] = "machine-generated"
+    tpme["application_type"] = "format-conversion"
+    tpme["application_provider"] = "GBH Archives"
+    tpme["application_name"] = "transcript_converter"
+    tpme["application_version"] = MODULE_VERSION
+    tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
+    tpme["application_params"] = {}
+    tpme["processing_note"] = processing_note
+
+    text = json.dumps(tpme, indent=2)
+    return text
+
 
 
 def main():
