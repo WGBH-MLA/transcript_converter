@@ -21,12 +21,14 @@ import time
 from mmif import Mmif
 
 try:
-    # if being run from higher level module
+    # if being run from higher level module (such as clams-kitchen)
     from . import proc_asr
+    from . import convert
     from .known_apps import KNOWN_APPS
 except ImportError:
     # if run as stand-alone
     import proc_asr
+    import convert
     from known_apps import KNOWN_APPS
 
 # Version number
@@ -46,6 +48,34 @@ VALID_ARTIFACTS = [ "transcript_aajson",
                     "tpme_text" ]
 
 TPME_PROVIDER = "GBH Archives"
+
+
+def write_out_tpme( tdict:dict,
+                    artifact:str,
+                    item:dict,
+                    cf:dict,
+                    ins:str = None,
+                    ) -> None:
+    """
+    Write out one of the TPME strings to a file.
+    """
+    # try to pull the most recent date from the TPME file
+    tpme = json.loads(tdict[artifact])
+    dates = [ e["modification_date"] for e in tpme ]
+    dates.sort(reverse=True) 
+    if dates:
+        dt = datetime.fromisoformat(dates[0])
+    else: 
+        dt = datetime.now()
+
+    # formulate filename and write out file
+    tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}-{dt.microsecond:06d}"
+    tpme_fname = f'{item["asset_id"]}-tpme-{tpme_ts}.json'
+    tpme_fpath = cf["artifacts_dir"] + "/" + artifact + "/" + tpme_fname
+    with open(tpme_fpath, "w") as file:
+        file.write( tdict[artifact] )
+        print(ins + f"TPME `{artifact}` saved: {tpme_fpath}" )
+
 
 
 def run_post( item:dict, 
@@ -82,7 +112,6 @@ def run_post( item:dict,
     # Set up for the particular kinds of artifacts requested 
     if "artifacts" in params:
         artifacts = params["artifacts"]
-        artifacts_dir = cf["artifacts_dir"]
     else:
         print(ins + "Warning: No artifacts specified.")  
         artifacts = []
@@ -92,12 +121,10 @@ def run_post( item:dict,
             print(ins + "Warning: Invalid artifact type '" + atype + "' will not be created.")
             print(ins + "Valid artifact types:", VALID_ARTIFACTS)
 
-
     # check params for extra params
     for key in params:
         if key not in POSTPROC_DEFAULTS:
             print(ins + "Warning: `" + key + "` is not a valid config option for this postprocess. Ignoring.")
-
 
     # Assign parameter values for this module
     # For each of the available parameter keys, if that parameter was passed in, then
@@ -112,9 +139,8 @@ def run_post( item:dict,
 
 
     #
-    # Perform foundational processing of MMIF file
+    # Perform processing of MMIF file
     #
-    
     print(ins + "Attempting to process MMIF transcript...")
 
     # Open MMIF and start processing
@@ -122,249 +148,65 @@ def run_post( item:dict,
     mmif_path = item["mmif_paths"][-1]
     with open(mmif_path, "r") as file:
         mmif_str = file.read()
-    usemmif = Mmif(mmif_str)
-    asr_view_id = proc_asr.get_asr_view_id(usemmif)
-    asr_view = usemmif.get_view_by_id( asr_view_id )
+
+    # Call the main conversion function
+    tdict = convert.mmif_to_all( mmif_str = mmif_str,
+                                 asset_id = item["asset_id"],
+                                 mmif_filename = f'{item["asset_id"]}-transcript.mmif',
+                                 tpme_provider = TPME_PROVIDER,
+                                 max_line_chars = pp_params["max_line_chars"],
+                                 embed_tpme_aajson = True,
+                                 processing_note = "clams-kitchen job ID: " + cf["job_id"] )
+    
+    # Scan for problems with transcripts and append to logging structures
+    # TO IMPLEMENT
+
 
     # 
+    # Write out all the artifact files, as appropriate
+    #
+
     # create transcript in MMIF format (as output by the CLAMS app)
-    # 
     artifact = "transcript_mmif"
     if artifact in artifacts:
-
         mmif_tr_fname = item["asset_id"] + "-transcript.mmif"
-        mmif_tr_fpath = artifacts_dir + "/" + artifact + "/" + mmif_tr_fname
+        mmif_tr_fpath = cf["artifacts_dir"] + "/" + artifact + "/" + mmif_tr_fname
+        with open(mmif_tr_fpath, "w") as file:
+            file.write(mmif_str)
+        print(ins + "MMIF transcript saved: " + mmif_tr_fpath)
 
-        if mmif_str:
-            with open(mmif_tr_fpath, "w") as file:
-                file.write(mmif_str)
-            print(ins + "MMIF transcript saved: " + mmif_tr_fpath)
-
-        # 
         # create TPME for MMIF transcript 
-        # 
         artifact = "tpme_mmif"
         if artifact in artifacts:
+            write_out_tpme( tdict, artifact, item, cf, ins )
 
-            iso_ts = asr_view.metadata["timestamp"]
-            dt = datetime.fromisoformat(iso_ts)
-
-            # Set values of TPME elements
-            tpme = {}
-            tpme["media_id"] = item["asset_id"]
-            tpme["transcript_id"] = mmif_tr_fname
-            tpme["parent_transcript_id"] = item["mmif_files"][-1]
-            tpme["modification_date"] = iso_ts
-            tpme["provider"] = TPME_PROVIDER
-            tpme["type"] = "transcript"
-            tpme["file_format"] = "MMIF"
-            tpme["features"] = { "time_aligned": True }
-            tpme["human_review_level"] = "machine-generated"
-            tpme["application_type"] = "ASR" 
-
-            try:
-                model_lang = asr_view.metadata.appConfiguration["modelLang"] 
-                languages = [ model_lang ]
-            except KeyError:
-                model_lang = None
-                print(ins + f"Language not declared.  Assuming language is '{pp_params['lang_str']}'.")
-                languages = [ pp_params['lang_str'] ]
-            tpme["transcript_language"] = languages
-
-            app = asr_view.metadata.app
-            tpme["application_id"] = app
-            model_size = asr_view.metadata.appConfiguration["modelSize"]
-            if app in KNOWN_APPS:
-                tpme["application_provider"] = KNOWN_APPS[app]["application_provider"]
-                tpme["application_name"] = KNOWN_APPS[app]["application_name"]
-                tpme["application_version"] = KNOWN_APPS[app]["application_version"]
-                tpme["application_repo"] = KNOWN_APPS[app]["application_repo"]
-
-                try:
-                    model_size = KNOWN_APPS[app]["model_size_aliases"][model_size]
-                except KeyError:
-                    model_size = model_size
-                try:
-                    model_name = KNOWN_APPS[app]["implied_lang_specific_models"][(model_lang, model_size)]
-                except KeyError:
-                    model_name = model_size
-                try:
-                    tpme["inference_model"] = KNOWN_APPS[app]["model_prefix"] + model_name
-                except KeyError:
-                    tpme["inference_model"] = model_name
-
-            else:
-                problems.append("app-unknown")
-                tpme["application_provider"] = "unknown"
-                tpme["application_name"] = app
-                try:
-                    tpme["application_version"] = asr_view.metadata.app.split("/")[-1]
-                except:
-                    tpme["application_version"] = "unknown"
-                tpme["application_repo"] = "unknown"
-                tpme["inference_model"] = model_size
-
-            tpme["application_params"] = asr_view.metadata["appConfiguration"]
-            tpme["processing_note"] = "clams-kitchen job ID: " + cf["job_id"]
-
-            # Write out TPME JSON file
-            tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}-{dt.microsecond:06d}"
-            mmif_tpme_fname = f'{item["asset_id"]}-tpme-{tpme_ts}.json'
-            mmif_tpme_fpath = artifacts_dir + "/" + artifact + "/" + mmif_tpme_fname
-
-            with open(mmif_tpme_fpath, "w") as file:
-                json.dump( tpme, file, indent=2 )
-
-            print(ins + "TPME for MMIF transcript saved: " + mmif_tpme_fpath)
-
-
-    # 
-    # create transcript in plain text format
-    # 
-    artifact = "transcript_text"
-    if artifact in artifacts:
-
-        # ensure no timestamp collisions
-        time.sleep(0.01)
-
-        toks_arr = proc_asr.make_toks_arr( asr_view )
-        sts_arr = proc_asr.make_sts_arr( toks_arr )
-
-        text_tr_fname = item["asset_id"] + "-transcript.txt"
-        text_tr_fpath = artifacts_dir + "/" + artifact + "/" + text_tr_fname
-
-        # Create a plain text transcript with line breaks between "sentences".
-        text = ""
-        if len(sts_arr):
-            for st in sts_arr:
-                if isinstance(st[2], str) and bool(st[2]):
-                    text += (st[2] + "\n")
-            with open( text_tr_fpath, "w" ) as file:
-                file.write( text )
-
-            print(ins + "Plain text transcript saved: " + text_tr_fpath)
-            dt = datetime.now()
-        else:
-            print(ins + "Problem: Found no sentences to analyze.")
-            print(ins + "Will not create a plain text transcript.")
-            problems.append("plain-text")
-            dt = None
-
-        # 
-        # create TPME for plain text transcript 
-        # 
-        artifact = "tpme_text"
-        if artifact in artifacts:
-
-            # Set values of TPME elements
-            tpme = {}
-            tpme["media_id"] = item["asset_id"]
-            tpme["transcript_id"] = text_tr_fname
-            tpme["parent_transcript_id"] = mmif_tr_fname
-            tpme["modification_date"] = datetime.now().isoformat()
-            tpme["provider"] = TPME_PROVIDER
-            tpme["type"] = "transcript"
-            tpme["file_format"] = "text/plain"
-            tpme["features"] = { }
-            try:
-                languages = [ asr_view.metadata.get_parameter("modelLang") ]
-            except KeyError:
-                print(ins + "Language not declared.  Assuming language is 'en'.")
-                languages = [ "en" ]
-            tpme["transcript_language"] = languages
-            tpme["human_review_level"] = "machine-generated"
-            tpme["application_type"] = "format-conversion" 
-            tpme["application_provider"] = "GBH Archives"            
-            tpme["application_name"] = "transcript_converter"
-            tpme["application_version"] = MODULE_VERSION
-            tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
-            tpme["application_params"] = pp_params
-            tpme["processing_note"] = "clams-kitchen job ID: " + cf["job_id"]
-
-            # Write out TPME JSON file
-            if dt is not None:
-                tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}-{dt.microsecond:06d}"
-                text_tpme_fname = f'{item["asset_id"]}-tpme-{tpme_ts}.json'
-                text_tpme_fpath = artifacts_dir + "/" + artifact + "/" + text_tpme_fname
-
-                with open(text_tpme_fpath, "w") as file:
-                    json.dump( tpme, file, indent=2 )
-
-                print(ins + "TPME for plain text transcript saved: " + text_tpme_fpath)
-
-
-    # 
     # create transcript in AAPB JSON format
-    # 
     artifact = "transcript_aajson"
     if artifact in artifacts:
-
-        # ensure no timestamp collisions
-        time.sleep(0.01)
-
-        toks_arr = proc_asr.make_toks_arr( asr_view )
-        toks_arr_split = proc_asr.split_long_sts( toks_arr, 
-                                                  max_chars=pp_params["max_line_chars"]  )
-        
-        sts_arr = proc_asr.make_sts_arr( toks_arr_split )
-
         aajson_tr_fname = item["asset_id"] + "-transcript.json"
-        aajson_tr_fpath = artifacts_dir + "/" + artifact + "/" + aajson_tr_fname
-        if len(sts_arr):
-            proc_asr.export_aapbjson( sts_arr, 
-                                     aajson_tr_fpath, 
-                                     asset_id=item["asset_id"] )
-            print(ins + "AAPB-Transcript-JSON transcript saved: " + aajson_tr_fpath)
-            dt = datetime.now()
-        else:
-            print(ins + "Problem: Found no sentences to analyze.")
-            print(ins + "Will not create AAPB-Transcript-JSON transcript.")
-            problems.append("aajson")
-            dt = None
+        aajson_tr_fpath = cf["artifacts_dir"] + "/" + artifact + "/" + aajson_tr_fname
+        with open(aajson_tr_fpath, "w") as file:
+            file.write(tdict["transcript_aajson"])
+        print(ins + "AAPB-Transcript-JSON transcript saved: " + aajson_tr_fpath)
 
-        # 
         # create TPME for AAPB JSON transcript 
-        # 
         artifact = "tpme_aajson"
         if artifact in artifacts:
+            write_out_tpme( tdict, artifact, item, cf, ins )
 
-            # Set values of TPME elements
-            tpme = {}
-            tpme["media_id"] = item["asset_id"]
-            tpme["transcript_id"] = aajson_tr_fname
-            tpme["parent_transcript_id"] = mmif_tr_fname
-            tpme["modification_date"] = datetime.now().isoformat()
-            tpme["provider"] = TPME_PROVIDER
-            tpme["type"] = "transcript"
-            tpme["file_format"] = "AAPB-transcript-JSON"
-            tpme["features"] = { "time_aligned": True,
-                                 "max_line_chars": pp_params["max_line_chars"] }
-            try:
-                languages = [ asr_view.metadata.get_parameter("modelLang") ]
-            except KeyError:
-                print(ins + "Language not declared.  Assuming language is 'en'.")
-                languages = [ "en" ]
-            tpme["transcript_language"] = languages
-            tpme["human_review_level"] = "machine-generated"
-            tpme["application_type"] = "format-conversion" 
-            tpme["application_provider"] = "GBH Archives"            
-            tpme["application_name"] = "transcript_converter"
-            tpme["application_version"] = MODULE_VERSION
-            tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
-            tpme["application_params"] = pp_params
-            tpme["processing_note"] = "clams-kitchen job ID: " + cf["job_id"]
+    # create transcript in plain text format
+    artifact = "transcript_text"
+    if artifact in artifacts:
+        text_tr_fname = item["asset_id"] + "-transcript.txt"
+        text_tr_fpath = cf["artifacts_dir"] + "/" + artifact + "/" + text_tr_fname
+        with open( text_tr_fpath, "w" ) as file:
+            file.write( tdict["transcript_text"] )
+        print(ins + "Plain text transcript saved: " + text_tr_fpath)
 
-            # Write out TPME JSON file
-            if dt is not None:
-                tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}-{dt.microsecond:06d}"
-                aajson_tpme_fname = f'{item["asset_id"]}-tpme-{tpme_ts}.json'
-                aajson_tpme_fpath = artifacts_dir + "/" + artifact + "/" + aajson_tpme_fname
-
-                with open(aajson_tpme_fpath, "w") as file:
-                    json.dump( tpme, file, indent=2 )
-
-                print(ins + "TPME for AAPB-transcript-JSON saved: " + aajson_tpme_fpath)
-
+        # create TPME for plain text transcript 
+        artifact = "tpme_text"
+        if artifact in artifacts:
+            write_out_tpme( tdict, artifact, item, cf, ins )
 
     # 
     # Finished with the whole postprocess

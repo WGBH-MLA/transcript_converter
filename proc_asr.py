@@ -14,7 +14,7 @@ from mmif import AnnotationTypes
 
 
 # Version number
-MODULE_VERSION = "0.64"
+MODULE_VERSION = "0.70"
 
 
 # list of tokens which need not be preceded by a space when added to a sentence string

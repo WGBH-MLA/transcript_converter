@@ -6,6 +6,7 @@ Top level module for MMIF-origin transcript conversion
 
 import json
 from datetime import datetime
+import time
 
 from mmif import Mmif
 
@@ -25,12 +26,14 @@ MODULE_VERSION = proc_asr.MODULE_VERSION
 DEFAULT_TPME_PROVIDER = "GBH Archives"
 
 
+
 def mmif_to_all( mmif_str:str,
                  asset_id:str = None,
                  mmif_filename:str = None,
                  languages:list = [],
                  tpme_provider:str = DEFAULT_TPME_PROVIDER,
                  max_line_chars:int = 100,
+                 embed_tpme_aajson = False,
                  processing_note:str = ""
                  ) -> dict :
     """
@@ -68,7 +71,8 @@ def mmif_to_all( mmif_str:str,
             languages = [ model_lang ]
         except KeyError:
             languages = []
-
+    
+    # create the dictionary of transcripts and TPME and add each item to it
     tdict = {}
 
     tdict["tpme_mmif"] = make_tpme_mmif( asr_view, 
@@ -78,11 +82,6 @@ def mmif_to_all( mmif_str:str,
                                          languages,
                                          processing_note )
 
-    tdict["transcript_aajson"] = make_transcript_aajson( asr_view, 
-                                                         asset_id, 
-                                                         languages,
-                                                         max_line_chars )
-
     tdict["tpme_aajson"] = make_tpme_aajson( asr_view, 
                                              asset_id, 
                                              mmif_filename, 
@@ -91,8 +90,6 @@ def mmif_to_all( mmif_str:str,
                                              max_line_chars,
                                              processing_note )
 
-    tdict["transcript_text"] = make_transcript_text( asr_view )
-
     tdict["tpme_text"] = make_tpme_text( asr_view, 
                                          asset_id, 
                                          mmif_filename, 
@@ -100,14 +97,32 @@ def mmif_to_all( mmif_str:str,
                                          languages, 
                                          processing_note)
 
+    if embed_tpme_aajson:
+        embedded_tpme = json.loads(tdict["tpme_aajson"]) + json.loads(tdict["tpme_mmif"])
+        embedded_tpme_str = json.dumps(embedded_tpme)
+    else:
+        embedded_tpme_str = None
+
+    tdict["transcript_aajson"] = make_transcript_aajson( asr_view, 
+                                                         asset_id, 
+                                                         languages,
+                                                         max_line_chars,
+                                                         embedded_tpme_str )
+
+    tdict["transcript_text"] = make_transcript_text( asr_view )
+
+
     return tdict
 
+
+############################################################################
 
 
 def make_transcript_aajson( asr_view, 
                             asset_id:str, 
                             languages:list[str],
-                            max_line_chars:int
+                            max_line_chars:int,
+                            embedded_tpme_str:str = None
                             ) -> str:
     
     # process and split tokens array
@@ -122,8 +137,11 @@ def make_transcript_aajson( asr_view,
     d = {}
     d["id"] = asset_id
     d["language"] = language
-    d["parts"] = []
 
+    if embedded_tpme_str:
+        d["tpme"] = json.loads(embedded_tpme_str)
+
+    d["parts"] = []
     # add a new "part" for every row of the sentence array
     for i, st in enumerate(sts_arr):
         d["parts"].append( { 
@@ -147,7 +165,7 @@ def make_transcript_text( asr_view ) -> str:
     text = ""
     if len(sts_arr):
         for st in sts_arr:
-            if isinstance(st[2], str):
+            if isinstance(st[2], str) and len(st):
                 text += (st[2] + "\n")
 
     return text
@@ -225,7 +243,7 @@ def make_tpme_mmif( asr_view,
     tpme["application_params"] = asr_view.metadata["appConfiguration"]
     tpme["processing_note"] = processing_note
 
-    text = json.dumps(tpme, indent=2)
+    text = json.dumps([tpme], indent=2)
     return text
 
 
@@ -239,6 +257,9 @@ def make_tpme_aajson( asr_view,
                       processing_note:str 
                       ) -> str:
     
+    # try to ensure a unique modification time
+    time.sleep(0.01)
+
     tpme = {}
     tpme["media_id"] = asset_id
     tpme["transcript_id"] = f"{asset_id}-transcript.json"
@@ -258,7 +279,7 @@ def make_tpme_aajson( asr_view,
     tpme["application_params"] = {"max_line_chars": max_line_chars}
     tpme["processing_note"] = processing_note
     
-    text = json.dumps(tpme, indent=2)
+    text = json.dumps([tpme], indent=2)
     return text
 
 
@@ -270,6 +291,9 @@ def make_tpme_text( asr_view,
                     languages:list[str],
                     processing_note:str
                     ) -> str:
+
+    # try to ensure a unique modification time
+    time.sleep(0.01)
 
     tpme = {}
     tpme["media_id"] = asset_id
@@ -290,16 +314,19 @@ def make_tpme_text( asr_view,
     tpme["application_params"] = {}
     tpme["processing_note"] = processing_note
 
-    text = json.dumps(tpme, indent=2)
+    text = json.dumps([tpme], indent=2)
     return text
 
 
+############################################################################
 
 def main():
     app_desc="""
     Performs transcript conversion from MMIF to other formats.
     """
     print("This module is intended to be called by other modules.")
+    print("Stand-alone mode not yet implemented.")
+
 
 #
 # Call to main function for stand-alone execution
