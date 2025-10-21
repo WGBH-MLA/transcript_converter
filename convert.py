@@ -118,10 +118,18 @@ def mmif_to_all( mmif_str:str,
                                              max_line_chars,
                                              processing_note )
 
+    tdict["tpme_webvtt"] = make_tpme_webvtt( asset_id, 
+                                             mmif_filename, 
+                                             tpme_provider, 
+                                             languages,
+                                             max_line_chars,
+                                             processing_note )
+
     tdict["tpme_text"] = make_tpme_text( asset_id, 
                                          mmif_filename, 
                                          tpme_provider,
                                          languages, 
+                                         max_line_chars,
                                          processing_note)
 
     if embed_tpme_aajson:
@@ -133,8 +141,9 @@ def mmif_to_all( mmif_str:str,
     tdict["transcript_aajson"] = make_transcript_aajson( sts_arr, 
                                                          asset_id, 
                                                          languages,
-                                                         max_line_chars,
                                                          embedded_tpme_str )
+
+    tdict["transcript_webvtt"] = make_transcript_webvtt( sts_arr )
 
     tdict["transcript_text"] = make_transcript_text( sts_arr )
 
@@ -148,7 +157,6 @@ def mmif_to_all( mmif_str:str,
 def make_transcript_aajson( sts_arr:list, 
                             asset_id:str, 
                             languages:list[str],
-                            max_line_chars:int,
                             embedded_tpme_str:str = None
                             ) -> str:
     
@@ -165,6 +173,7 @@ def make_transcript_aajson( sts_arr:list,
 
     d["parts"] = []
     # add a new "part" for every row of the sentence array
+    # (Must convert milliseconds to fractional seconds.)
     for i, st in enumerate(sts_arr):
         d["parts"].append( { 
             "start_time": st[0] / 1000,
@@ -175,6 +184,33 @@ def make_transcript_aajson( sts_arr:list,
     text = json.dumps(d, indent=2)
     return text
 
+
+def make_transcript_webvtt( sts_arr:list ) -> str:
+
+    def ms2str ( total_ms: int ) -> str:
+        # break time codes into components for VTT
+        ms = total_ms % 1000
+        total_seconds = total_ms // 1000
+        s = total_seconds % 60
+        total_minutes = total_seconds // 60
+        m = total_minutes % 60
+        h = total_minutes // 60
+
+        # observe VTT convention of dropping unnecessary hours digits
+        if h > 0:
+            timecode = f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"  # HH:MM:SS.mmm
+        else:
+            timecode = f"{m:02d}:{s:02d}.{ms:03d}"  # MM:SS.mmm
+        return timecode
+
+    # build one big string of text
+    text = "WEBVTT\n\n"
+    for st in sts_arr:
+        # write out the time cue followed by the text 
+        cue_line = ms2str(st[0]) + " --> " + ms2str(st[1]) 
+        text += ( cue_line + "\n" + st[2] + "\n\n" )
+
+    return text
 
 
 def make_transcript_text( sts_arr:list ) -> str:
@@ -301,10 +337,46 @@ def make_tpme_aajson( asset_id:str,
 
 
 
+def make_tpme_webvtt( asset_id:str, 
+                      mmif_filename:str, 
+                      tpme_provider:str,
+                      languages:list[str],
+                      max_line_chars:int,
+                      processing_note:str 
+                      ) -> str:
+    
+    # try to ensure a unique modification time
+    time.sleep(0.01)
+
+    tpme = {}
+    tpme["media_id"] = asset_id
+    tpme["transcript_id"] = f"{asset_id}-transcript.vtt"
+    tpme["parent_transcript_id"] = mmif_filename
+    tpme["modification_date"] = datetime.now().isoformat()
+    tpme["provider"] = tpme_provider
+    tpme["type"] = "transcript"
+    tpme["file_format"] = "text/vtt"
+    tpme["features"] = { "time_aligned": True, "max_line_chars": max_line_chars }
+    tpme["transcript_language"] = languages
+    tpme["human_review_level"] = "machine-generated"
+    tpme["application_type"] = "format-conversion"
+    tpme["application_provider"] = "GBH Archives"
+    tpme["application_name"] = "transcript_converter"
+    tpme["application_version"] = MODULE_VERSION
+    tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
+    tpme["application_params"] = {"max_line_chars": max_line_chars}
+    tpme["processing_note"] = processing_note
+    
+    text = json.dumps([tpme], indent=2)
+    return text
+
+
+
 def make_tpme_text( asset_id:str, 
                     mmif_filename:str, 
                     tpme_provider:str, 
                     languages:list[str],
+                    max_line_chars:int,                    
                     processing_note:str
                     ) -> str:
 
@@ -319,7 +391,7 @@ def make_tpme_text( asset_id:str,
     tpme["provider"] = tpme_provider
     tpme["type"] = "transcript"
     tpme["file_format"] = "text/plain"
-    tpme["features"] = { }
+    tpme["features"] = { "max_line_chars": max_line_chars }
     tpme["transcript_language"] = languages
     tpme["human_review_level"] = "machine-generated"
     tpme["application_type"] = "format-conversion"

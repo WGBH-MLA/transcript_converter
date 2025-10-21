@@ -43,6 +43,7 @@ POSTPROC_DEFAULTS = { "name": None,
 VALID_ARTIFACTS = [ "transcript_aajson",
                     "transcript_mmif",
                     "transcript_text",
+                    "transcript_webvtt",
                     "tpme_mmif",
                     "tpme_aajson",
                     "tpme_text" ]
@@ -183,25 +184,39 @@ def run_post( item:dict,
     # create transcript in AAPB JSON format
     artifact = "transcript_aajson"
     if artifact in artifacts:
-        aajson_tr_fname = item["asset_id"] + "-transcript.json"
-        aajson_tr_fpath = cf["artifacts_dir"] + "/" + artifact + "/" + aajson_tr_fname
-        with open(aajson_tr_fpath, "w") as file:
+        tr_fname = item["asset_id"] + "-transcript.json"
+        tr_fpath = cf["artifacts_dir"] + "/" + artifact + "/" + tr_fname
+        with open(tr_fpath, "w") as file:
             file.write(tdict["transcript_aajson"])
-        print(ins + "AAPB-Transcript-JSON transcript saved: " + aajson_tr_fpath)
+        print(ins + "AAPB-Transcript-JSON transcript saved: " + tr_fpath)
 
         # create TPME for AAPB JSON transcript 
         artifact = "tpme_aajson"
         if artifact in artifacts:
             write_out_tpme( tdict, artifact, item, cf, ins )
 
+    # create transcript in WebVTT format
+    artifact = "transcript_webvtt"
+    if artifact in artifacts:
+        tr_fname = item["asset_id"] + "-transcript.vtt"
+        tr_fpath = cf["artifacts_dir"] + "/" + artifact + "/" + tr_fname
+        with open(tr_fpath, "w") as file:
+            file.write(tdict["transcript_webvtt"])
+        print(ins + "WebVTT transcript saved: " + tr_fpath)
+
+        # create TPME for AAPB JSON transcript 
+        artifact = "tpme_webvtt"
+        if artifact in artifacts:
+            write_out_tpme( tdict, artifact, item, cf, ins )
+
     # create transcript in plain text format
     artifact = "transcript_text"
     if artifact in artifacts:
-        text_tr_fname = item["asset_id"] + "-transcript.txt"
-        text_tr_fpath = cf["artifacts_dir"] + "/" + artifact + "/" + text_tr_fname
-        with open( text_tr_fpath, "w" ) as file:
+        tr_fname = item["asset_id"] + "-transcript.txt"
+        tr_fpath = cf["artifacts_dir"] + "/" + artifact + "/" + tr_fname
+        with open( tr_fpath, "w" ) as file:
             file.write( tdict["transcript_text"] )
-        print(ins + "Plain text transcript saved: " + text_tr_fpath)
+        print(ins + "Plain text transcript saved: " + tr_fpath)
 
         # create TPME for plain text transcript 
         artifact = "tpme_text"
