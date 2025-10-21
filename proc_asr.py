@@ -3,9 +3,9 @@ proc_asr.py
 
 Defines functions that perform processing on MMIF output from whisper-wrapper.
 """
-# %%
 import logging
 import json
+import copy
 
 import pandas as pd
 
@@ -13,6 +13,7 @@ from mmif import Mmif
 from mmif import AnnotationTypes
 from mmif import View
 
+# import pprint # DIAG
 
 # Version number
 MODULE_VERSION = "0.70"
@@ -21,7 +22,7 @@ MODULE_VERSION = "0.70"
 # list of tokens which need not be preceded by a space when added to a sentence string
 NO_SPACE_BEFORE = ['.', ',', '-', '/']
 
-# %%
+
 def get_asr_view_id( usemmif:Mmif ) -> str:
     """
     Takes a MMIF object and returns the ID of the view from whisper-wrapper
@@ -48,6 +49,7 @@ def get_asr_view_id( usemmif:Mmif ) -> str:
     return asr_view_id
 
 
+
 def tpme_from_mmif( usemmif:Mmif, asr_view_id:str=None ):
     """
     Takes an MMIF string and a view ID and returns a dictionary of TPME elements
@@ -56,7 +58,7 @@ def tpme_from_mmif( usemmif:Mmif, asr_view_id:str=None ):
     raise NotImplementedError("tpme_from_mmif is not yet implemented")
 
 
-# %%
+
 def make_toks_arr( asr_view:View ) -> list :
     """
     Takes a MMIF view object and returns a table of tokens and their times.
@@ -108,7 +110,7 @@ def make_toks_arr( asr_view:View ) -> list :
     # want to return a list instead of a dataframe
     toks_arr = tfs_tos_df.values.tolist()
     
-    # make sure the annotations are in the right order
+    # make sure the token annotations are ordered by their start time
     toks_arr.sort(key=lambda f:f[0])
 
     # Scan through list to look for issues:
@@ -141,7 +143,7 @@ def make_toks_arr( asr_view:View ) -> list :
     return toks_arr
 
 
-# %%
+
 def split_long_sts( toks_arr_in:list, 
                     max_chars:int=80,
                     max_toks_backtrack:int=3,
@@ -171,8 +173,14 @@ def split_long_sts( toks_arr_in:list,
       - Try to split after punctuation, if convenient to do so without having 
         to backtrack too far to find the punctuation.
 
+    Sanitizing:
+      - Before the splitting algorithm, this function runs a couple of sanitizing
+        steps:  truncating extremely long tokens and adding a sentence name for
+        tokens without one.
+
     Parameters
-      - max_chars: the maximum length of a sentence in characters
+      - max_chars: the maximum length of a sentence in characters.  A value less 
+           than one will result in just returning a copy of the input array.
       - max_toks_backtrack: the maximum number of tokens to backtrack from the
            end of a maximally long line in order to find an elegant location
            to divide
@@ -186,20 +194,25 @@ def split_long_sts( toks_arr_in:list,
     common_abbrevs = ["Mr.", "Mrs.", "Ms.", "Dr.", "Sr.", "Sra.", "Srta."]
 
     # deep copy input token array
-    toks_arr = []
-    for r_in in toks_arr_in:
-        r = []
-        for i in r_in:
-            r.append(i)
-        toks_arr.append(r)
+    toks_arr = copy.deepcopy(toks_arr_in)
 
-    # Sanitize the array of tokens limiting character length of each token.
-    # (Whisper has been known to output crazy long tokens, but tokens needs to be
-    # be shorter than the lines, since we're splitting between tokens.)
+    # if max stated character is not positive, just return copy of array
+    if max_chars < 1:
+        return toks_arr
+
+    assert max_chars >= 10, "Maximum characters per line must be at least 10."
+
+    # Sanitize the array of tokens.
+    # First, Limit the character length of each token. (Whisper has been known 
+    # to output crazy long tokens, but tokens needs to be shorter than the lines, 
+    # since we're splitting between tokens.)
+    # Second, Give tokens without sentences a stand-in sentence name.
     max_tok_chars = max_chars - 3
     for r in toks_arr:
         if len(r[2]) > max_tok_chars:
             r[2] = r[2][:max_tok_chars]
+        if not r[3] or not isinstance(r[3], str):
+            r[3] = "no_sentence"
 
     # build ordered lists of sentence ids
     st_ids = []
@@ -209,6 +222,8 @@ def split_long_sts( toks_arr_in:list,
 
     # perform analysis and splitting sentence-by-sentence
     for st_id in st_ids:
+
+        # start by getting a much smaller array -- just for this sentence
         sttoks_arr = [ t for t in toks_arr if t[3] == st_id ]  
         
         # calculate the length of the current sentence
@@ -222,6 +237,8 @@ def split_long_sts( toks_arr_in:list,
 
         # If the line is too long, analyze and re-label sentences to perform split 
         if len(st) > max_chars:
+
+            # print("LENGTH:", len(st) ) # DIAG
 
             # find the index of the last token that would put the sentence under the limit            
             lasti = 0
@@ -254,24 +271,30 @@ def split_long_sts( toks_arr_in:list,
             for t in sttoks_arr[(lasti+1):]:
                 t[3] = t[3]+"_x"
             
+            # pprint.pprint(sttoks_arr) # DIAG
+
             #
             # Recursion step: In case the part after the cut-off is also too long, 
             # run function again on just the part of the array we're focused on.
             #
-            sttoks_arr_split = split_long_sts(sttoks_arr, max_chars, max_toks_backtrack, min_toks_dangled)
-            # copy the results of the new split back into this array
-            for i, r in enumerate(sttoks_arr):
-                r = sttoks_arr_split[i]
+            sttoks_arr_split = split_long_sts( sttoks_arr, 
+                                               max_chars, 
+                                               max_toks_backtrack, 
+                                               min_toks_dangled)
+            
+            # Copy the labels reflecting any new split back into the sentence array
+            for i, t in enumerate(sttoks_arr):
+                t[3] = sttoks_arr_split[i][3]
 
     # return the new array that has been relabeled
     return toks_arr
 
 
 
-# %%
 def make_sts_arr( toks_arr:list ) -> list:
     """
-    Takes the token array and combines tokens into their sentences.
+    Takes the token array and combines tokens into their sentences according to the 
+    sentence labels in the toks array.
     """    
 
     # empty list of sentences
