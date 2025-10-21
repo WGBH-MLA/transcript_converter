@@ -19,8 +19,10 @@ the strings of interest.
 import json
 from datetime import datetime
 import time
+import copy
 
 from mmif import Mmif
+from mmif import View
 
 try:
     # if being run from higher level module
@@ -62,6 +64,21 @@ def mmif_to_all( mmif_str:str,
     asr_view_id = proc_asr.get_asr_view_id(usemmif)
     asr_view = usemmif.get_view_by_id(asr_view_id)
 
+    # create tokens array (with sentence labels) from ASR view
+    toks_arr = proc_asr.make_toks_arr(asr_view)
+
+    # split tokens array, if appropriate
+    try:
+        toks_arr_split = proc_asr.split_long_sts(toks_arr, max_chars=max_line_chars)
+    except Exception as e:
+        print("Splitting long lines failed.")
+        print("Encountered exception:", e)
+        print("Will proceed without splitting long lines.")
+        toks_arr_split = copy.deepcopy(toks_arr)
+
+    # make sentence array
+    sts_arr = proc_asr.make_sts_arr(toks_arr_split)
+
     # try to derive a media ID if not given
     if not asset_id:
         try:
@@ -94,16 +111,14 @@ def mmif_to_all( mmif_str:str,
                                          languages,
                                          processing_note )
 
-    tdict["tpme_aajson"] = make_tpme_aajson( asr_view, 
-                                             asset_id, 
+    tdict["tpme_aajson"] = make_tpme_aajson( asset_id, 
                                              mmif_filename, 
                                              tpme_provider, 
                                              languages,
                                              max_line_chars,
                                              processing_note )
 
-    tdict["tpme_text"] = make_tpme_text( asr_view, 
-                                         asset_id, 
+    tdict["tpme_text"] = make_tpme_text( asset_id, 
                                          mmif_filename, 
                                          tpme_provider,
                                          languages, 
@@ -115,13 +130,13 @@ def mmif_to_all( mmif_str:str,
     else:
         embedded_tpme_str = None
 
-    tdict["transcript_aajson"] = make_transcript_aajson( asr_view, 
+    tdict["transcript_aajson"] = make_transcript_aajson( sts_arr, 
                                                          asset_id, 
                                                          languages,
                                                          max_line_chars,
                                                          embedded_tpme_str )
 
-    tdict["transcript_text"] = make_transcript_text( asr_view )
+    tdict["transcript_text"] = make_transcript_text( sts_arr )
 
 
     return tdict
@@ -130,18 +145,13 @@ def mmif_to_all( mmif_str:str,
 ############################################################################
 
 
-def make_transcript_aajson( asr_view, 
+def make_transcript_aajson( sts_arr:list, 
                             asset_id:str, 
                             languages:list[str],
                             max_line_chars:int,
                             embedded_tpme_str:str = None
                             ) -> str:
     
-    # process and split tokens array
-    toks_arr = proc_asr.make_toks_arr(asr_view)
-    toks_arr_split = proc_asr.split_long_sts(toks_arr, max_chars=max_line_chars)
-    sts_arr = proc_asr.make_sts_arr(toks_arr_split)
-
     # create a semicolon-separated language string
     language = ";".join(languages)
 
@@ -167,12 +177,8 @@ def make_transcript_aajson( asr_view,
 
 
 
-def make_transcript_text( asr_view ) -> str:
+def make_transcript_text( sts_arr:list ) -> str:
     
-    # process tokens array
-    toks_arr = proc_asr.make_toks_arr(asr_view)
-    sts_arr = proc_asr.make_sts_arr(toks_arr)
-
     # build one big string of text
     text = ""
     if len(sts_arr):
@@ -184,7 +190,7 @@ def make_transcript_text( asr_view ) -> str:
 
 
 
-def make_tpme_mmif( asr_view, 
+def make_tpme_mmif( asr_view:View, 
                     asset_id:str, 
                     mmif_filename:str, 
                     tpme_provider:str, 
@@ -260,8 +266,7 @@ def make_tpme_mmif( asr_view,
 
 
 
-def make_tpme_aajson( asr_view, 
-                      asset_id:str, 
+def make_tpme_aajson( asset_id:str, 
                       mmif_filename:str, 
                       tpme_provider:str,
                       languages:list[str],
@@ -296,8 +301,7 @@ def make_tpme_aajson( asr_view,
 
 
 
-def make_tpme_text( asr_view, 
-                    asset_id:str, 
+def make_tpme_text( asset_id:str, 
                     mmif_filename:str, 
                     tpme_provider:str, 
                     languages:list[str],
