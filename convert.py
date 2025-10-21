@@ -1,7 +1,19 @@
 """
 convert.py
 
-Top level module for MMIF-origin transcript conversion
+High-level module for MMIF-origin transcript conversion.
+
+Recommended usage is to call the `mmif_to_all` function, passing in a string
+of well-formed MMIF.  That function will return a dictionary of transcripts 
+and transcript metadata in various formats.  
+
+The reason for having one function that returns all the formats is that the
+most computationally expensive operation is the loading and processing of the 
+MMIF file.  Once that is done, the conersion to various formats is extremely
+fast, and the output strings are relatively short (compared to the length of
+an MMIF file).  So, it's most efficient to do it all at once and then use only
+the strings of interest.
+
 """
 
 import json

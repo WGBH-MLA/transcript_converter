@@ -11,6 +11,7 @@ import pandas as pd
 
 from mmif import Mmif
 from mmif import AnnotationTypes
+from mmif import View
 
 
 # Version number
@@ -47,7 +48,7 @@ def get_asr_view_id( usemmif:Mmif ) -> str:
     return asr_view_id
 
 
-def tpme_from_mmif( usemmif, asr_view_id=None):
+def tpme_from_mmif( usemmif:Mmif, asr_view_id:str=None ):
     """
     Takes an MMIF string and a view ID and returns a dictionary of TPME elements
     and values.
@@ -56,7 +57,7 @@ def tpme_from_mmif( usemmif, asr_view_id=None):
 
 
 # %%
-def make_toks_arr( asr_view ) -> list :
+def make_toks_arr( asr_view:View ) -> list :
     """
     Takes a MMIF view object and returns a table of tokens and their times.
 
@@ -305,30 +306,4 @@ def make_sts_arr( toks_arr:list ) -> list:
 
     return sts_arr
         
-
-# %%
-def export_aapbjson( sts_arr,
-                     fpath:str,
-                     asset_id:str="",
-                     language:str="en-US" ):
-
-    d = {}
-    d["id"] = asset_id
-    d["language"] = language
-    d["parts"] = []
-
-    for i, st in enumerate(sts_arr):
-        if isinstance(st[2], str) and bool(st[2]):
-            d["parts"].append( { 
-                "start_time": st[0] / 1000,
-                "end_time": st[1] / 1000,
-                "text": st[2],
-                "speaker_id": i+1 } )
-
-    if fpath:
-        with open( fpath, "w") as file:
-            json.dump( d, file, indent=2 )
-    else:
-        return json.dumps(d, indent=2)
-
 
