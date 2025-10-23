@@ -33,7 +33,7 @@ except ImportError:
     import proc_asr
     from known_apps import KNOWN_APPS
 
-# Version number
+# Inherit module version number
 MODULE_VERSION = proc_asr.MODULE_VERSION
 
 # Default `provider` for TPME
@@ -46,7 +46,8 @@ def mmif_to_all( mmif_str:str,
                  mmif_filename:str = None,
                  languages:list = [],
                  tpme_provider:str = DEFAULT_TPME_PROVIDER,
-                 max_line_chars:int = 100,
+                 max_segment_chars:int = 100,
+                 max_line_chars:int = 42,
                  embed_tpme_aajson = False,
                  processing_note:str = ""
                  ) -> dict :
@@ -69,7 +70,7 @@ def mmif_to_all( mmif_str:str,
 
     # split tokens array, if appropriate
     try:
-        toks_arr_split = proc_asr.split_long_sts(toks_arr, max_chars=max_line_chars)
+        toks_arr_split = proc_asr.split_long_sts(toks_arr, max_chars=max_segment_chars)
     except Exception as e:
         print("Splitting long lines failed.")
         print("Encountered exception:", e)
@@ -115,13 +116,14 @@ def mmif_to_all( mmif_str:str,
                                              mmif_filename, 
                                              tpme_provider, 
                                              languages,
-                                             max_line_chars,
+                                             max_segment_chars,
                                              processing_note )
 
     tdict["tpme_webvtt"] = make_tpme_webvtt( asset_id, 
                                              mmif_filename, 
                                              tpme_provider, 
                                              languages,
+                                             max_segment_chars,
                                              max_line_chars,
                                              processing_note )
 
@@ -129,7 +131,7 @@ def mmif_to_all( mmif_str:str,
                                          mmif_filename, 
                                          tpme_provider,
                                          languages, 
-                                         max_line_chars,
+                                         max_segment_chars,
                                          processing_note)
 
     if embed_tpme_aajson:
@@ -143,7 +145,8 @@ def mmif_to_all( mmif_str:str,
                                                          languages,
                                                          embedded_tpme_str )
 
-    tdict["transcript_webvtt"] = make_transcript_webvtt( sts_arr )
+    tdict["transcript_webvtt"] = make_transcript_webvtt( sts_arr,
+                                                         max_line_chars )
 
     tdict["transcript_text"] = make_transcript_text( sts_arr )
 
@@ -152,6 +155,44 @@ def mmif_to_all( mmif_str:str,
 
 
 ############################################################################
+
+def break_long_lines( segment:str, 
+                      max_line_chars:int
+                      ) -> str:
+    """
+    Add line breaks within long segments.
+    
+    (Assumes that there are not yet any line breaks.)
+    """
+
+    # break string into a list
+    wordl = segment.split(" ")
+
+    # truncate crazily long words
+    for i, w in enumerate(wordl):
+        if len(w) > max_line_chars:
+            wordl[i] = w[:max_line_chars]
+
+    # split long lines
+    llen = 0
+    for i, w in enumerate(wordl):
+        # if adding a space plus the new word would go over the limit
+        if (llen + 1 + len(wordl[i])) > max_line_chars:
+            # add a carriage return to the end of the preceding word
+            wordl[i-1] += "\n"
+            # start a new line length with the current word
+            llen = len(wordl[i])
+        else:
+            llen += (1 + len(wordl[i]))
+
+    # put string back together
+    split_seg = " ".join(wordl)
+    
+    # remove spaces after newlines
+    split_seg = split_seg.replace("\n ", "\n")
+
+    return split_seg
+
 
 
 def make_transcript_aajson( sts_arr:list, 
@@ -185,7 +226,9 @@ def make_transcript_aajson( sts_arr:list,
     return text
 
 
-def make_transcript_webvtt( sts_arr:list ) -> str:
+def make_transcript_webvtt( sts_arr:list,
+                            max_line_chars:int = 42,
+                            ) -> str:
 
     def ms2str ( total_ms: int ) -> str:
         # break time codes into components for VTT
@@ -208,7 +251,8 @@ def make_transcript_webvtt( sts_arr:list ) -> str:
     for st in sts_arr:
         # write out the time cue followed by the text 
         cue_line = ms2str(st[0]) + " --> " + ms2str(st[1]) 
-        text += ( cue_line + "\n" + st[2] + "\n\n" )
+        text_lines = break_long_lines(st[2], max_line_chars)
+        text += ( cue_line + "\n" + text_lines + "\n\n" )
 
     return text
 
@@ -306,7 +350,7 @@ def make_tpme_aajson( asset_id:str,
                       mmif_filename:str, 
                       tpme_provider:str,
                       languages:list[str],
-                      max_line_chars:int,
+                      max_segment_chars:int,
                       processing_note:str 
                       ) -> str:
     
@@ -321,7 +365,7 @@ def make_tpme_aajson( asset_id:str,
     tpme["provider"] = tpme_provider
     tpme["type"] = "transcript"
     tpme["file_format"] = "AAPB-transcript-JSON"
-    tpme["features"] = { "time_aligned": True, "max_line_chars": max_line_chars }
+    tpme["features"] = { "time_aligned": True, "max_segment_chars": max_segment_chars }
     tpme["transcript_language"] = languages
     tpme["human_review_level"] = "machine-generated"
     tpme["application_type"] = "format-conversion"
@@ -329,7 +373,7 @@ def make_tpme_aajson( asset_id:str,
     tpme["application_name"] = "transcript_converter"
     tpme["application_version"] = MODULE_VERSION
     tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
-    tpme["application_params"] = {"max_line_chars": max_line_chars}
+    tpme["application_params"] = {"max_segment_chars": max_segment_chars}
     tpme["processing_note"] = processing_note
     
     text = json.dumps([tpme], indent=2)
@@ -341,6 +385,7 @@ def make_tpme_webvtt( asset_id:str,
                       mmif_filename:str, 
                       tpme_provider:str,
                       languages:list[str],
+                      max_segment_chars:int,
                       max_line_chars:int,
                       processing_note:str 
                       ) -> str:
@@ -356,7 +401,7 @@ def make_tpme_webvtt( asset_id:str,
     tpme["provider"] = tpme_provider
     tpme["type"] = "transcript"
     tpme["file_format"] = "text/vtt"
-    tpme["features"] = { "time_aligned": True, "max_line_chars": max_line_chars }
+    tpme["features"] = { "time_aligned": True, "max_segment_chars": max_segment_chars, "max_line_chars": max_line_chars }
     tpme["transcript_language"] = languages
     tpme["human_review_level"] = "machine-generated"
     tpme["application_type"] = "format-conversion"
@@ -364,7 +409,7 @@ def make_tpme_webvtt( asset_id:str,
     tpme["application_name"] = "transcript_converter"
     tpme["application_version"] = MODULE_VERSION
     tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
-    tpme["application_params"] = {"max_line_chars": max_line_chars}
+    tpme["application_params"] = {"max_segment_chars": max_segment_chars, "max_line_chars": max_line_chars}
     tpme["processing_note"] = processing_note
     
     text = json.dumps([tpme], indent=2)
@@ -376,7 +421,7 @@ def make_tpme_text( asset_id:str,
                     mmif_filename:str, 
                     tpme_provider:str, 
                     languages:list[str],
-                    max_line_chars:int,                    
+                    max_segment_chars:int,                    
                     processing_note:str
                     ) -> str:
 
@@ -391,7 +436,7 @@ def make_tpme_text( asset_id:str,
     tpme["provider"] = tpme_provider
     tpme["type"] = "transcript"
     tpme["file_format"] = "text/plain"
-    tpme["features"] = { "max_line_chars": max_line_chars }
+    tpme["features"] = { "max_segment_chars": max_segment_chars }
     tpme["transcript_language"] = languages
     tpme["human_review_level"] = "machine-generated"
     tpme["application_type"] = "format-conversion"

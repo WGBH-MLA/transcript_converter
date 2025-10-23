@@ -22,22 +22,16 @@ from mmif import Mmif
 
 try:
     # if being run from higher level module (such as clams-kitchen)
-    from . import proc_asr
     from . import convert
-    from .known_apps import KNOWN_APPS
 except ImportError:
     # if run as stand-alone
-    import proc_asr
     import convert
-    from known_apps import KNOWN_APPS
-
-# Version number
-MODULE_VERSION = proc_asr.MODULE_VERSION
 
 # These are the defaults specific to routines defined in this module.
 POSTPROC_DEFAULTS = { "name": None,
                       "artifacts": [],
-                      "max_line_chars": 100,
+                      "max_segment_chars": 100,
+                      "max_line_chars": 42,
                       "lang_str": "en" }
 
 VALID_ARTIFACTS = [ "transcript_aajson",
@@ -155,12 +149,14 @@ def run_post( item:dict,
                                  asset_id = item["asset_id"],
                                  mmif_filename = f'{item["asset_id"]}-transcript.mmif',
                                  tpme_provider = TPME_PROVIDER,
+                                 max_segment_chars = pp_params["max_segment_chars"],
                                  max_line_chars = pp_params["max_line_chars"],
                                  embed_tpme_aajson = True,
                                  processing_note = "clams-kitchen job ID: " + cf["job_id"] )
     
     # Scan for problems with transcripts and append to logging structures
     # TO IMPLEMENT
+    # (Or better, have `mmif_to_all` return problems, and append this to postproc problems.)
 
 
     # 
