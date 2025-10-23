@@ -40,7 +40,8 @@ VALID_ARTIFACTS = [ "transcript_aajson",
                     "transcript_webvtt",
                     "tpme_mmif",
                     "tpme_aajson",
-                    "tpme_text" ]
+                    "tpme_text",
+                    "tpme_webvtt" ]
 
 TPME_PROVIDER = "GBH Archives"
 

@@ -49,7 +49,8 @@ def mmif_to_all( mmif_str:str,
                  max_segment_chars:int = 100,
                  max_line_chars:int = 42,
                  embed_tpme_aajson = False,
-                 processing_note:str = ""
+                 processing_note:str = "",
+                 prior_tpme_str:str = None
                  ) -> dict :
     """
     Takes a MMIF transcript as a string.
@@ -110,14 +111,16 @@ def mmif_to_all( mmif_str:str,
                                          mmif_filename, 
                                          tpme_provider, 
                                          languages,
-                                         processing_note )
+                                         processing_note,
+                                         prior_tpme_str )
 
-    tdict["tpme_aajson"] = make_tpme_aajson( asset_id, 
-                                             mmif_filename, 
-                                             tpme_provider, 
-                                             languages,
-                                             max_segment_chars,
-                                             processing_note )
+    tdict["tpme_text"] = make_tpme_text( asset_id, 
+                                         mmif_filename, 
+                                         tpme_provider,
+                                         languages, 
+                                         max_segment_chars,
+                                         processing_note,
+                                         tdict["tpme_mmif"])
 
     tdict["tpme_webvtt"] = make_tpme_webvtt( asset_id, 
                                              mmif_filename, 
@@ -125,17 +128,20 @@ def mmif_to_all( mmif_str:str,
                                              languages,
                                              max_segment_chars,
                                              max_line_chars,
-                                             processing_note )
+                                             processing_note,
+                                             tdict["tpme_mmif"] )
 
-    tdict["tpme_text"] = make_tpme_text( asset_id, 
-                                         mmif_filename, 
-                                         tpme_provider,
-                                         languages, 
-                                         max_segment_chars,
-                                         processing_note)
+    tdict["tpme_aajson"] = make_tpme_aajson( asset_id, 
+                                             mmif_filename, 
+                                             tpme_provider, 
+                                             languages,
+                                             max_segment_chars,
+                                             processing_note,
+                                             tdict["tpme_mmif"] )
+
 
     if embed_tpme_aajson:
-        embedded_tpme = json.loads(tdict["tpme_aajson"]) + json.loads(tdict["tpme_mmif"])
+        embedded_tpme = json.loads(tdict["tpme_aajson"])
         embedded_tpme_str = json.dumps(embedded_tpme)
     else:
         embedded_tpme_str = None
@@ -162,7 +168,7 @@ def break_long_lines( segment:str,
     """
     Add line breaks within long segments.
     
-    (Assumes that there are not yet any line breaks.)
+    (Assumes that there are not yet any line breaks within individual segments.)
     """
 
     # break string into a list
@@ -192,7 +198,6 @@ def break_long_lines( segment:str,
     split_seg = split_seg.replace("\n ", "\n")
 
     return split_seg
-
 
 
 def make_transcript_aajson( sts_arr:list, 
@@ -275,7 +280,8 @@ def make_tpme_mmif( asr_view:View,
                     mmif_filename:str, 
                     tpme_provider:str, 
                     languages:list[str],
-                    processing_note:str 
+                    processing_note:str,
+                    prior_tpme_str:str = None 
                     ) -> str:
 
     iso_ts = asr_view.metadata["timestamp"]
@@ -341,7 +347,12 @@ def make_tpme_mmif( asr_view:View,
     tpme["application_params"] = asr_view.metadata["appConfiguration"]
     tpme["processing_note"] = processing_note
 
-    text = json.dumps([tpme], indent=2)
+    tpmel = [tpme]
+    if prior_tpme_str:
+        prior_tpmel = json.loads(prior_tpme_str)
+        tpmel = tpmel + prior_tpmel
+
+    text = json.dumps(tpmel, indent=2)
     return text
 
 
@@ -351,7 +362,8 @@ def make_tpme_aajson( asset_id:str,
                       tpme_provider:str,
                       languages:list[str],
                       max_segment_chars:int,
-                      processing_note:str 
+                      processing_note:str,
+                      prior_tpme_str:str = None
                       ) -> str:
     
     # try to ensure a unique modification time
@@ -376,7 +388,12 @@ def make_tpme_aajson( asset_id:str,
     tpme["application_params"] = {"max_segment_chars": max_segment_chars}
     tpme["processing_note"] = processing_note
     
-    text = json.dumps([tpme], indent=2)
+    tpmel = [tpme]
+    if prior_tpme_str:
+        prior_tpmel = json.loads(prior_tpme_str)
+        tpmel = tpmel + prior_tpmel
+
+    text = json.dumps(tpmel, indent=2)
     return text
 
 
@@ -387,7 +404,8 @@ def make_tpme_webvtt( asset_id:str,
                       languages:list[str],
                       max_segment_chars:int,
                       max_line_chars:int,
-                      processing_note:str 
+                      processing_note:str,
+                      prior_tpme_str:str = None 
                       ) -> str:
     
     # try to ensure a unique modification time
@@ -412,7 +430,12 @@ def make_tpme_webvtt( asset_id:str,
     tpme["application_params"] = {"max_segment_chars": max_segment_chars, "max_line_chars": max_line_chars}
     tpme["processing_note"] = processing_note
     
-    text = json.dumps([tpme], indent=2)
+    tpmel = [tpme]
+    if prior_tpme_str:
+        prior_tpmel = json.loads(prior_tpme_str)
+        tpmel = tpmel + prior_tpmel
+
+    text = json.dumps(tpmel, indent=2)
     return text
 
 
@@ -422,7 +445,8 @@ def make_tpme_text( asset_id:str,
                     tpme_provider:str, 
                     languages:list[str],
                     max_segment_chars:int,                    
-                    processing_note:str
+                    processing_note:str,
+                    prior_tpme_str:str = None
                     ) -> str:
 
     # try to ensure a unique modification time
@@ -447,7 +471,12 @@ def make_tpme_text( asset_id:str,
     tpme["application_params"] = {}
     tpme["processing_note"] = processing_note
 
-    text = json.dumps([tpme], indent=2)
+    tpmel = [tpme]
+    if prior_tpme_str:
+        prior_tpmel = json.loads(prior_tpme_str)
+        tpmel = tpmel + prior_tpmel
+
+    text = json.dumps(tpmel, indent=2)
     return text
 
 
