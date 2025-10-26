@@ -17,6 +17,8 @@ as long as they are defined in one of the option defauls global variables.
 import json
 from datetime import datetime
 import time
+import os
+import glob
 
 from mmif import Mmif
 
@@ -29,10 +31,11 @@ except ImportError:
 
 # These are the defaults specific to routines defined in this module.
 POSTPROC_DEFAULTS = { "name": None,
+                      "lang_str": "en",
                       "artifacts": [],
-                      "max_segment_chars": 100,
+                      "max_segment_chars": 110,
                       "max_line_chars": 42,
-                      "lang_str": "en" }
+                      "remove_stale_tpme": True }
 
 VALID_ARTIFACTS = [ "transcript_aajson",
                     "transcript_mmif",
@@ -50,6 +53,7 @@ def write_out_tpme( tdict:dict,
                     artifact:str,
                     item:dict,
                     cf:dict,
+                    pp_params:dict,
                     ins:str = None,
                     ) -> None:
     """
@@ -64,10 +68,26 @@ def write_out_tpme( tdict:dict,
     else: 
         dt = datetime.now()
 
+    # identify the destination folder
+    tpme_dpath = cf["artifacts_dir"] + "/" + artifact
+
+    # check for stale TPME files, and remove if instructed
+    tpme_fpath_pattern = os.path.join(tpme_dpath, f'{item["asset_id"]}-tpme-*.json' )
+    filepaths_for_removal = glob.glob(tpme_fpath_pattern)
+    for filepath in filepaths_for_removal:
+        if pp_params["remove_stale_tpme"]:
+            try:
+                os.remove(filepath)
+                print(ins + "Removed stale TPME file: " + filepath)
+            except OSError as e:
+                print(ins + "Tried but failed to remove stale TPME file: " + filepath)
+        else:
+            print(ins + "Leaving stale TPME file: " + filepath)
+
     # formulate filename and write out file
     tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}-{dt.microsecond:06d}"
     tpme_fname = f'{item["asset_id"]}-tpme-{tpme_ts}.json'
-    tpme_fpath = cf["artifacts_dir"] + "/" + artifact + "/" + tpme_fname
+    tpme_fpath = tpme_dpath + "/" + tpme_fname
     with open(tpme_fpath, "w") as file:
         file.write( tdict[artifact] )
         print(ins + f"TPME `{artifact}` saved: {tpme_fpath}" )
@@ -157,7 +177,8 @@ def run_post( item:dict,
     
     # Scan for problems with transcripts and append to logging structures
     # TO IMPLEMENT
-    # (Or better, have `mmif_to_all` return problems, and append this to postproc problems.)
+    # (Or better, have `mmif_to_all` return problems (as a dict key), and append them
+    # to postproc problems.)
 
 
     # 
@@ -176,7 +197,7 @@ def run_post( item:dict,
         # create TPME for MMIF transcript 
         artifact = "tpme_mmif"
         if artifact in artifacts:
-            write_out_tpme( tdict, artifact, item, cf, ins )
+            write_out_tpme( tdict, artifact, item, cf, pp_params, ins )
 
     # create transcript in AAPB JSON format
     artifact = "transcript_aajson"
@@ -190,7 +211,7 @@ def run_post( item:dict,
         # create TPME for AAPB JSON transcript 
         artifact = "tpme_aajson"
         if artifact in artifacts:
-            write_out_tpme( tdict, artifact, item, cf, ins )
+            write_out_tpme( tdict, artifact, item, cf, pp_params, ins )
 
     # create transcript in WebVTT format
     artifact = "transcript_webvtt"
@@ -204,7 +225,7 @@ def run_post( item:dict,
         # create TPME for AAPB JSON transcript 
         artifact = "tpme_webvtt"
         if artifact in artifacts:
-            write_out_tpme( tdict, artifact, item, cf, ins )
+            write_out_tpme( tdict, artifact, item, cf, pp_params, ins )
 
     # create transcript in plain text format
     artifact = "transcript_text"
@@ -218,7 +239,7 @@ def run_post( item:dict,
         # create TPME for plain text transcript 
         artifact = "tpme_text"
         if artifact in artifacts:
-            write_out_tpme( tdict, artifact, item, cf, ins )
+            write_out_tpme( tdict, artifact, item, cf, pp_params, ins )
 
     # 
     # Finished with the whole postprocess
