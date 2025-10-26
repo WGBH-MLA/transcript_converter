@@ -85,6 +85,13 @@ def mmif_to_all( mmif_str:str,
           TPME records.
     """
     
+    # create the dictionary of transcripts and TPME 
+    tdict = {}
+
+    # places to report problems or notable conditions encountered
+    tdict["problems"] = []
+    tdict["infos"] = []
+
     # create Mmif object
     usemmif = Mmif(mmif_str)
 
@@ -146,9 +153,9 @@ def mmif_to_all( mmif_str:str,
         prior_tpme = []
 
 
-    # create the dictionary of transcripts and TPME and add each item to it
-    tdict = {}
-
+    # 
+    # Add each transcript or TPME string to the dictionary
+    # 
     tdict["tpme_mmif"] = make_tpme_mmif( asr_view, 
                                          asset_id, 
                                          mmif_filename, 
