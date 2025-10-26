@@ -187,14 +187,13 @@ def mmif_to_all( mmif_str:str,
 
     if embed_tpme_aajson:
         embedded_tpme = json.loads(tdict["tpme_aajson"])
-        embedded_tpme_str = json.dumps(embedded_tpme)
     else:
-        embedded_tpme_str = None
+        embedded_tpme = None
 
     tdict["transcript_aajson"] = make_transcript_aajson( sts_arr, 
                                                          asset_id, 
                                                          languages,
-                                                         embedded_tpme_str )
+                                                         embedded_tpme )
 
     tdict["transcript_webvtt"] = make_transcript_webvtt( sts_arr,
                                                          max_line_chars )
@@ -252,7 +251,7 @@ def break_long_lines( segment:str,
 def make_transcript_aajson( sts_arr:list, 
                             asset_id:str, 
                             languages:list[str],
-                            embedded_tpme_str:str = None
+                            embedded_tpme:dict = None
                             ) -> str:
     
     # create a semicolon-separated language string
@@ -263,8 +262,8 @@ def make_transcript_aajson( sts_arr:list,
     d["id"] = asset_id
     d["language"] = language
 
-    if embedded_tpme_str:
-        d["tpme"] = json.loads(embedded_tpme_str)
+    if embedded_tpme:
+        d["tpme"] = embedded_tpme
 
     d["parts"] = []
     # add a new "part" for every row of the sentence array
@@ -317,7 +316,7 @@ def make_transcript_text( sts_arr:list ) -> str:
     text = ""
     if len(sts_arr):
         for st in sts_arr:
-            if isinstance(st[2], str) and len(st):
+            if isinstance(st[2], str) and len(st[2]):
                 text += (st[2] + "\n")
 
     return text
