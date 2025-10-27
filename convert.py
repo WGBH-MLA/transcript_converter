@@ -20,6 +20,8 @@ import json
 from datetime import datetime
 import time
 import copy
+import argparse
+import warnings
 
 from mmif import Mmif
 from mmif import View
@@ -42,7 +44,7 @@ DEFAULT_MAX_SEGMENT_CHARS = 110
 DEFAULT_MAX_LINE_CHARS = 42
 
 def mmif_to_all( mmif_str:str,
-                 asset_id:str = None,
+                 item_id:str = None,
                  mmif_filename:str = None,
                  languages:list = [],
                  tpme_provider:str = DEFAULT_TPME_PROVIDER,
@@ -59,7 +61,7 @@ def mmif_to_all( mmif_str:str,
     transcripts in various formats and their associated TPME files.
 
     Args:
-      asset_id (str): Asset identifier for the media that was transcribed.
+      item_id (str): Identifier for the media that was transcribed.
           This will be recorded in the TPME files.
       mmif_filename (str): The filename of the MMIF file which is being
           converted.  This will be recorded in the TPME files.
@@ -72,7 +74,7 @@ def mmif_to_all( mmif_str:str,
           in the TPME.  If none is given, the hard-coded default value in 
           this module will be used.
       max_segment_chars (int): The maximum length in characters of a time-
-          delineated segment of the transcript.
+          aligned segment of the transcript.
       max_line_chars (int):  The maximum length in characters before a line
           break in a transcript format, like WebVTT, designed for on-screen
           display.
@@ -103,31 +105,34 @@ def mmif_to_all( mmif_str:str,
     toks_arr = proc_asr.make_toks_arr(asr_view)
 
     # split tokens array, if appropriate
-    try:
-        toks_arr_split = proc_asr.split_long_sts(toks_arr, max_chars=max_segment_chars)
-    except Exception as e:
-        print("Splitting long lines failed.")
-        print("Encountered exception:", e)
-        print("Will proceed without splitting long lines.")
-        toks_arr_split = copy.deepcopy(toks_arr)
+    toks_arr_split = proc_asr.split_long_sts(toks_arr, max_chars=max_segment_chars)
+    # try:
+    #     toks_arr_split = proc_asr.split_long_sts(toks_arr, max_chars=max_segment_chars)
+    # except Exception as e:
+    #     print("Splitting long lines failed.")
+    #     print("Encountered exception:", e)
+    #     print("Will proceed without splitting long lines.")
+    #     toks_arr_split = copy.deepcopy(toks_arr)
 
     # make sentence array
     sts_arr = proc_asr.make_sts_arr(toks_arr_split)
 
-    # try to derive a media ID if not given
-    if not asset_id:
+    # derive item ID if one was not given
+    if item_id:
+        tdict["item_id"] = item_id
+    else:
         try:
-            document = asr_view.get_documents()[0]
-            doc_loc = document["properties"]["location"]
-            filename = doc_loc.split("/")[-1]
-            asset_id = filename.split(".")[0]
+            #doc_loc = usemmif.get_document_location()
+            #filename = doc_loc.split("/")[-1]
+            #item_id = filename.split(".")[0]
+            tdict["item_id"] = (mmif_filename.split(".")[0]).split("_")[0]
         except Exception as e:
-            print("No media ID given and could not derive it from MMIF document location.")
-            print("Encountered exception:\n", e)
+            print("No media ID given and could not derive it from MMIF. Exception:")
+            print(e)
     
     # make up the canonical MMIF filename, if not provided
     if not mmif_filename:
-        mmif_filename = asset_id + "-transcript.mmif"
+        mmif_filename = item_id + "-transcript.mmif"
 
     # try to infer the language from the MMIF if not state explicitly
     if not languages:
@@ -157,7 +162,7 @@ def mmif_to_all( mmif_str:str,
     # Add each transcript or TPME string to the dictionary
     # 
     tdict["tpme_mmif"] = make_tpme_mmif( asr_view, 
-                                         asset_id, 
+                                         tdict["item_id"], 
                                          mmif_filename, 
                                          tpme_provider, 
                                          languages,
@@ -166,7 +171,7 @@ def mmif_to_all( mmif_str:str,
 
     prior_tmpe_mmif = json.loads(tdict["tpme_mmif"])
 
-    tdict["tpme_text"] = make_tpme_text( asset_id, 
+    tdict["tpme_text"] = make_tpme_text( tdict["item_id"], 
                                          mmif_filename, 
                                          tpme_provider,
                                          languages, 
@@ -174,7 +179,7 @@ def mmif_to_all( mmif_str:str,
                                          processing_note,
                                          prior_tmpe_mmif )
 
-    tdict["tpme_webvtt"] = make_tpme_webvtt( asset_id, 
+    tdict["tpme_webvtt"] = make_tpme_webvtt( tdict["item_id"], 
                                              mmif_filename, 
                                              tpme_provider, 
                                              languages,
@@ -183,7 +188,7 @@ def mmif_to_all( mmif_str:str,
                                              processing_note,
                                              prior_tmpe_mmif )
 
-    tdict["tpme_aajson"] = make_tpme_aajson( asset_id, 
+    tdict["tpme_aajson"] = make_tpme_aajson( tdict["item_id"], 
                                              mmif_filename, 
                                              tpme_provider, 
                                              languages,
@@ -198,7 +203,7 @@ def mmif_to_all( mmif_str:str,
         embedded_tpme = None
 
     tdict["transcript_aajson"] = make_transcript_aajson( sts_arr, 
-                                                         asset_id, 
+                                                         tdict["item_id"], 
                                                          languages,
                                                          embedded_tpme )
 
@@ -256,7 +261,7 @@ def break_long_lines( segment:str,
 # Make transcript functions
 
 def make_transcript_aajson( sts_arr:list, 
-                            asset_id:str, 
+                            item_id:str, 
                             languages:list[str],
                             embedded_tpme:dict = None
                             ) -> str:
@@ -266,7 +271,7 @@ def make_transcript_aajson( sts_arr:list,
 
     # create AAPB JSON structure
     d = {}
-    d["id"] = asset_id
+    d["id"] = item_id
     d["language"] = language
 
     if embedded_tpme:
@@ -333,7 +338,7 @@ def make_transcript_text( sts_arr:list ) -> str:
 # Make TPME functions
 
 def make_tpme_mmif( asr_view:View, 
-                    asset_id:str, 
+                    item_id:str, 
                     mmif_filename:str, 
                     tpme_provider:str, 
                     languages:list[str],
@@ -345,7 +350,7 @@ def make_tpme_mmif( asr_view:View,
 
     # Set values of TPME elements
     tpme = {}
-    tpme["media_id"] = asset_id
+    tpme["media_id"] = item_id
     tpme["transcript_id"] = mmif_filename
     tpme["modification_date"] = iso_ts
     tpme["provider"] = tpme_provider
@@ -413,7 +418,7 @@ def make_tpme_mmif( asr_view:View,
 
 
 
-def make_tpme_aajson( asset_id:str, 
+def make_tpme_aajson( item_id:str, 
                       mmif_filename:str, 
                       tpme_provider:str,
                       languages:list[str],
@@ -426,8 +431,8 @@ def make_tpme_aajson( asset_id:str,
     time.sleep(0.01)
 
     tpme = {}
-    tpme["media_id"] = asset_id
-    tpme["transcript_id"] = f"{asset_id}-transcript.json"
+    tpme["media_id"] = item_id
+    tpme["transcript_id"] = f"{item_id}-transcript.json"
     tpme["parent_transcript_id"] = mmif_filename
     tpme["modification_date"] = datetime.now().isoformat()
     tpme["provider"] = tpme_provider
@@ -453,7 +458,7 @@ def make_tpme_aajson( asset_id:str,
 
 
 
-def make_tpme_webvtt( asset_id:str, 
+def make_tpme_webvtt( item_id:str, 
                       mmif_filename:str, 
                       tpme_provider:str,
                       languages:list[str],
@@ -467,8 +472,8 @@ def make_tpme_webvtt( asset_id:str,
     time.sleep(0.01)
 
     tpme = {}
-    tpme["media_id"] = asset_id
-    tpme["transcript_id"] = f"{asset_id}-transcript.vtt"
+    tpme["media_id"] = item_id
+    tpme["transcript_id"] = f"{item_id}-transcript.vtt"
     tpme["parent_transcript_id"] = mmif_filename
     tpme["modification_date"] = datetime.now().isoformat()
     tpme["provider"] = tpme_provider
@@ -494,7 +499,7 @@ def make_tpme_webvtt( asset_id:str,
 
 
 
-def make_tpme_text( asset_id:str, 
+def make_tpme_text( item_id:str, 
                     mmif_filename:str, 
                     tpme_provider:str, 
                     languages:list[str],
@@ -507,8 +512,8 @@ def make_tpme_text( asset_id:str,
     time.sleep(0.01)
 
     tpme = {}
-    tpme["media_id"] = asset_id
-    tpme["transcript_id"] = f"{asset_id}-transcript.txt"
+    tpme["media_id"] = item_id
+    tpme["transcript_id"] = f"{item_id}-transcript.txt"
     tpme["parent_transcript_id"] = mmif_filename
     tpme["modification_date"] = datetime.now().isoformat()
     tpme["provider"] = tpme_provider
@@ -522,7 +527,7 @@ def make_tpme_text( asset_id:str,
     tpme["application_name"] = "transcript_converter"
     tpme["application_version"] = MODULE_VERSION
     tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
-    tpme["application_params"] = {}
+    tpme["application_params"] = {"max_segment_chars": max_segment_chars}
     tpme["processing_note"] = processing_note
 
     tpmel = [tpme]
@@ -537,12 +542,88 @@ def make_tpme_text( asset_id:str,
 # Main function
 
 def main():
-    app_desc="""
-    Performs transcript conversion from MMIF to other formats.
-    """
-    print("This module is intended to be called by other modules.")
-    print("Stand-alone mode not yet implemented.")
 
+    app_desc = f"MMIF transcript_converter (version {MODULE_VERSION}). "
+    app_desc += """
+    Performs transcript conversion from MMIF to AAPB transcript JSON.
+
+    This module is primarily intended to be invoked by other modules.
+    Limited functionality is exposed by this CLI.
+    """
+
+    parser = argparse.ArgumentParser(
+        prog='convert.py',
+        description=app_desc,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+
+    parser.add_argument("mmifpath", metavar="MMIF",
+        help="Path to the source MMIF file")
+    parser.add_argument("-v", "--vtt", action="store_true",
+        help="Output transcript in WebVTT format instead of AAPB JSON")
+    parser.add_argument("-m", "--tpme", action="store_true",
+        help="Output TPME metadata sidecars for the transcripts produced.")
+    parser.add_argument("-s", "--max-seg-chars", type=int, default=DEFAULT_MAX_SEGMENT_CHARS,
+        help="Maximum number of characters in a time-aligned segment")
+    parser.add_argument("-l", "--max-line-chars", type=int, default=DEFAULT_MAX_LINE_CHARS,
+        help="Maximum number of charcters in a line before a line break in WebVTT")
+    parser.add_argument("-i", "--item-id", default="",
+        help="The identifier of the media, to be recorded in TPME.")
+    parser.add_argument("-p", "--provider", default=DEFAULT_TPME_PROVIDER,
+        help="The transcript provider, to be recorded in TPME.")
+    parser.add_argument("-n", "--processing-note", default="",
+        help="Processing note to be recorded in TPME.")
+    
+    args = parser.parse_args()
+
+    try:
+        mmif_filename = args.mmifpath.split("/")[-1]
+        with open(args.mmifpath, "r") as file:
+            mmif_str = file.read()
+    except Exception as e:
+        print("Failed to open source MMIF file.  Encountered exception:")
+        print(e)
+        print("Use `-h` flag to see usage instructions.")
+
+    # suppress MMIF warnings
+    warnings.filterwarnings("ignore")
+
+    # perform conversion
+    tdict = mmif_to_all( mmif_str = mmif_str,
+                         item_id = args.item_id,
+                         mmif_filename = mmif_filename,
+                         tpme_provider = args.provider,
+                         max_segment_chars = args.max_seg_chars,
+                         max_line_chars = args.max_line_chars,
+                         embed_tpme_aajson = True,
+                         processing_note = args.processing_note )    
+
+    # get potentially more informative media ID
+    item_id = tdict["item_id"]
+
+    # write out file(s)
+    if args.vtt:
+        # write out WebVTT
+        fname = item_id + "-transcript.vtt"
+        with open(fname, "w") as file:
+            file.write(tdict["transcript_webvtt"])
+        if args.tpme:
+            dt = datetime.now()
+            tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}-{dt.microsecond:06d}"
+            tpme_fname = f'{item_id}-tpme-{tpme_ts}.json'
+            with open(tpme_fname, "w") as file:
+                file.write(tdict["tpme_webvtt"])
+    else:
+        # write out AAPB JSON
+        fname = item_id + "-transcript.json"
+        with open(fname, "w") as file:
+            file.write(tdict["transcript_aajson"])
+        if args.tpme:
+            dt = datetime.now()
+            tpme_ts = f"{dt.year:04d}{dt.month:02d}{dt.day:02d}-{dt.hour:02d}{dt.minute:02d}{dt.second:02d}-{dt.microsecond:06d}"
+            tpme_fname = f'{item_id}-tpme-{tpme_ts}.json'
+            with open(tpme_fname, "w") as file:
+                file.write(tdict["tpme_aajson"])
 
 #
 # Call to main function for stand-alone execution
