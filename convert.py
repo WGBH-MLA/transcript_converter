@@ -13,7 +13,6 @@ MMIF file.  Once that is done, the conersion to various formats is extremely
 fast, and the output strings are relatively short (compared to the length of
 an MMIF file).  So, it's most efficient to do it all at once and then use only
 the strings of interest.
-
 """
 
 import json
@@ -30,13 +29,14 @@ try:
     # if being run from higher level module
     from . import proc_asr
     from .known_apps import KNOWN_APPS
+    from . import VERSION
 except ImportError:
     # if run as stand-alone
     import proc_asr
     from known_apps import KNOWN_APPS
+    from __init__ import VERSION
 
-# Inherit module version number
-MODULE_VERSION = proc_asr.MODULE_VERSION
+
 
 # Default values
 DEFAULT_TPME_PROVIDER = "unspecified"
@@ -367,7 +367,7 @@ def make_tpme_mmif( asr_view:View,
         model_size = asr_view.metadata.appConfiguration["modelSize"]
     except KeyError:
         model_size = ""
-    try:    
+    try:
         model_lang = asr_view.metadata.appConfiguration["modelLang"] 
     except KeyError:
         model_lang = ""
@@ -444,7 +444,7 @@ def make_tpme_aajson( item_id:str,
     tpme["application_type"] = "format-conversion"
     tpme["application_provider"] = "GBH Archives"
     tpme["application_name"] = "transcript_converter"
-    tpme["application_version"] = MODULE_VERSION
+    tpme["application_version"] = VERSION
     tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
     tpme["application_params"] = {"max_segment_chars": max_segment_chars}
     tpme["processing_note"] = processing_note
@@ -485,7 +485,7 @@ def make_tpme_webvtt( item_id:str,
     tpme["application_type"] = "format-conversion"
     tpme["application_provider"] = "GBH Archives"
     tpme["application_name"] = "transcript_converter"
-    tpme["application_version"] = MODULE_VERSION
+    tpme["application_version"] = VERSION
     tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
     tpme["application_params"] = {"max_segment_chars": max_segment_chars, "max_line_chars": max_line_chars}
     tpme["processing_note"] = processing_note
@@ -525,7 +525,7 @@ def make_tpme_text( item_id:str,
     tpme["application_type"] = "format-conversion"
     tpme["application_provider"] = "GBH Archives"
     tpme["application_name"] = "transcript_converter"
-    tpme["application_version"] = MODULE_VERSION
+    tpme["application_version"] = VERSION
     tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
     tpme["application_params"] = {"max_segment_chars": max_segment_chars}
     tpme["processing_note"] = processing_note
@@ -543,7 +543,7 @@ def make_tpme_text( item_id:str,
 
 def main():
 
-    app_desc = f"MMIF transcript_converter (version {MODULE_VERSION}). "
+    app_desc = f"MMIF transcript_converter (version {VERSION}). "
     app_desc += """
     Performs transcript conversion from MMIF to AAPB transcript JSON.
 
@@ -596,7 +596,7 @@ def main():
                          max_segment_chars = args.max_seg_chars,
                          max_line_chars = args.max_line_chars,
                          embed_tpme_aajson = True,
-                         processing_note = args.processing_note )    
+                         processing_note = args.processing_note )
 
     # get potentially more informative media ID
     item_id = tdict["item_id"]
@@ -630,4 +630,3 @@ def main():
 #
 if __name__ == "__main__":
     main()
-

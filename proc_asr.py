@@ -15,8 +15,7 @@ from mmif import View
 
 # import pprint # DIAG
 
-# Version number
-MODULE_VERSION = "0.71"
+
 
 
 # list of tokens which need not be preceded by a space when added to a sentence string
