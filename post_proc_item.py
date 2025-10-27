@@ -4,7 +4,8 @@ post_proc_item.py
 Defines functions for doing post processing of MMIF created by CLAMS ASR apps
 such as app-whisper-wrapper.
 
-Assumes processing takes place in the context of job processing in the style of 
+This file was written with AAPB workflows in mind.  In particular, it assumes 
+that processing takes place in the context of job processing in the style of 
 clams-kitchen, with `item` and `cf` dictionaries passed from the job runner 
 routine.
 
@@ -167,7 +168,7 @@ def run_post( item:dict,
 
     # Call the main conversion function
     tdict = convert.mmif_to_all( mmif_str = mmif_str,
-                                 asset_id = item["asset_id"],
+                                 item_id = item["asset_id"],
                                  mmif_filename = f'{item["asset_id"]}-transcript.mmif',
                                  tpme_provider = TPME_PROVIDER,
                                  max_segment_chars = pp_params["max_segment_chars"],

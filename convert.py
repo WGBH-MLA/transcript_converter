@@ -545,16 +545,16 @@ def main():
 
     app_desc = f"MMIF transcript_converter (version {VERSION}). "
     app_desc += """
-    Performs transcript conversion from MMIF to AAPB transcript JSON.
+Performs transcript conversion from MMIF to AAPB transcript JSON.
 
-    This module is primarily intended to be invoked by other modules.
-    Limited functionality is exposed by this CLI.
+This module is primarily intended to be invoked by other modules by importing it and calling the `mmif_to_all` function.
+Only limited functionality is exposed by this CLI.
     """
 
     parser = argparse.ArgumentParser(
         prog='convert.py',
         description=app_desc,
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        formatter_class=argparse.RawTextHelpFormatter
     )
 
     parser.add_argument("mmifpath", metavar="MMIF",
