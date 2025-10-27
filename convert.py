@@ -22,6 +22,7 @@ import copy
 
 from mmif import Mmif
 from mmif import View
+from mmif.vocabulary import DocumentTypes
 
 from . import proc_asr
 from .known_apps import KNOWN_APPS
@@ -112,14 +113,21 @@ def mmif_to_all( mmif_str:str,
         tdict["item_id"] = item_id
     else:
         try:
-            tdict["item_id"] = (mmif_filename.split(".")[0]).split("_")[0]
-            #doc_loc = usemmif.get_document_location()
-            #filename = doc_loc.split("/")[-1]
-            #item_id = filename.split(".")[0]
-            
+            # first look for an AudioDocument
+            doc_loc = usemmif.get_document_location(DocumentTypes.AudioDocument, path_only=True)
+            if not doc_loc:
+                # otherwise look for a VideoDocument
+                doc_loc = usemmif.get_document_location(DocumentTypes.VideoDocument, path_only=True)
+            if doc_loc:
+                filename = doc_loc.split("/")[-1]
+                tdict["item_id"] = filename.split(".")[0]
+            else:
+                raise Exception("No AudioDocument or VideoDocument found.")
         except Exception as e:
-            print("No media ID given and could not derive it from MMIF. Exception:")
-            print(e)
+            print("No media ID given and could not derive it from MMIF file.")
+            print("Exception:", e)
+            print("Will attempt to derive an ID from the MMIF filename.")
+            tdict["item_id"] = (mmif_filename.split(".")[0]).split("_")[0]
     
     # make up the canonical MMIF filename, if not provided
     if not mmif_filename:

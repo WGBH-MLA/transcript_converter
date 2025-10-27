@@ -65,6 +65,7 @@ Only limited functionality is exposed by this CLI.
         print("Failed to open source MMIF file.  Encountered exception:")
         print(e)
         print("Use `-h` flag to see usage instructions.")
+        raise SystemExit
 
     # suppress MMIF warnings
     warnings.filterwarnings("ignore")
