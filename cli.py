@@ -1,9 +1,26 @@
+"""
+cli.py
+
+Use the converstion functionality provided by covert.py for simple usage
+from the command line.
+
+Basic usage: 
+   python -m transcript_converter.cli PATH/TO/YOURFILE.mmif
+
+To see additional options
+   python -m transcript_converter.cli -h 
+
+"""
+
 import argparse
 import warnings
 from datetime import datetime
 
-from . import mmif_to_all, VERSION
+#from .convert import mmif_to_all
+from . import mmif_to_all
+from . import VERSION
 from transcript_converter.convert import DEFAULT_TPME_PROVIDER, DEFAULT_MAX_SEGMENT_CHARS, DEFAULT_MAX_LINE_CHARS
+
 
 def main():
 

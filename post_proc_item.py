@@ -23,12 +23,9 @@ import glob
 
 from mmif import Mmif
 
-try:
-    # if being run from higher level module (such as clams-kitchen)
-    from . import convert
-except ImportError:
-    # if run as stand-alone
-    import convert
+#from .convert import mmif_to_all
+from . import mmif_to_all
+
 
 # These are the defaults specific to routines defined in this module.
 POSTPROC_DEFAULTS = { "name": None,
@@ -167,14 +164,14 @@ def run_post( item:dict,
         mmif_str = file.read()
 
     # Call the main conversion function
-    tdict = convert.mmif_to_all( mmif_str = mmif_str,
-                                 item_id = item["asset_id"],
-                                 mmif_filename = f'{item["asset_id"]}-transcript.mmif',
-                                 tpme_provider = TPME_PROVIDER,
-                                 max_segment_chars = pp_params["max_segment_chars"],
-                                 max_line_chars = pp_params["max_line_chars"],
-                                 embed_tpme_aajson = True,
-                                 processing_note = "clams-kitchen job ID: " + cf["job_id"] )
+    tdict = mmif_to_all( mmif_str = mmif_str,
+                         item_id = item["asset_id"],
+                         mmif_filename = f'{item["asset_id"]}-transcript.mmif',
+                         tpme_provider = TPME_PROVIDER,
+                         max_segment_chars = pp_params["max_segment_chars"],
+                         max_line_chars = pp_params["max_line_chars"],
+                         embed_tpme_aajson = True,
+                         processing_note = "clams-kitchen job ID: " + cf["job_id"] )
     
     # Scan for problems with transcripts and append to logging structures
     # TO IMPLEMENT

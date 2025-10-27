@@ -20,21 +20,12 @@ from datetime import datetime
 import time
 import copy
 
-
 from mmif import Mmif
 from mmif import View
 
-try:
-    # if being run from higher level module
-    from . import proc_asr
-    from .known_apps import KNOWN_APPS
-    from . import VERSION
-except ImportError:
-    # if run as stand-alone
-    import proc_asr
-    from known_apps import KNOWN_APPS
-    from __init__ import VERSION
-
+from . import proc_asr
+from .known_apps import KNOWN_APPS
+from . import VERSION
 
 
 # Default values
@@ -121,10 +112,11 @@ def mmif_to_all( mmif_str:str,
         tdict["item_id"] = item_id
     else:
         try:
+            tdict["item_id"] = (mmif_filename.split(".")[0]).split("_")[0]
             #doc_loc = usemmif.get_document_location()
             #filename = doc_loc.split("/")[-1]
             #item_id = filename.split(".")[0]
-            tdict["item_id"] = (mmif_filename.split(".")[0]).split("_")[0]
+            
         except Exception as e:
             print("No media ID given and could not derive it from MMIF. Exception:")
             print(e)

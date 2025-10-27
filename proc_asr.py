@@ -1,7 +1,14 @@
 """
 proc_asr.py
 
-Defines functions that perform processing on MMIF output from whisper-wrapper.
+Defines functions that perform basic processing on MMIF output from 
+whisper-wrapper or similar ASR CLAMS apps.
+
+The primary role of this module is to convert transcript data in the 
+MMIF graph structure to tabular data.
+
+It also provides functionality for relabling of segment to adjust their
+lengths (to limit those that are too long).
 """
 import logging
 import json
@@ -14,8 +21,6 @@ from mmif import AnnotationTypes
 from mmif import View
 
 # import pprint # DIAG
-
-
 
 
 # list of tokens which need not be preceded by a space when added to a sentence string
