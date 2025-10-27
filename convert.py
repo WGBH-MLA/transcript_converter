@@ -76,6 +76,18 @@ def mmif_to_all( mmif_str:str,
       prior_tpme_str (str):  A JSON string of TPME (like from a previous run
           of this module) to be appended to the end of the newly newly created
           TPME records.
+
+    Returns:
+      dict:  A dictionary with strings of transcripts and TPME records.
+      It includes the following keys, each of which has a string value.
+      - item_id:  The item ID (derived from MMIF if no ID was passed inI)
+      - transcript_aajson:  The transcript in AAPB Transcript JSON format
+      - transcript_webvtt:  The transcript in WebVTT format
+      - transcript_text:  The transcript in plain text
+      - tpme_mmif:  TPME metadata for the MMIF transcript passed in
+      - tpme_aajson:  TPME metadata for the corresponding output transcript      
+      - tpme_webvtt:  TPME metadata for the corresponding output transcript
+      - tpme_text:   TPME metadata for the corresponding output transcript
     """
     
     # create the dictionary of transcripts and TPME 
@@ -109,6 +121,7 @@ def mmif_to_all( mmif_str:str,
     sts_arr = proc_asr.make_sts_arr(toks_arr_split)
 
     # derive item ID if one was not given
+    # (From here on, use `tdict["item_id"]` to refer to the item ID.)
     if item_id:
         tdict["item_id"] = item_id
     else:
@@ -131,7 +144,7 @@ def mmif_to_all( mmif_str:str,
     
     # make up the canonical MMIF filename, if not provided
     if not mmif_filename:
-        mmif_filename = item_id + "-transcript.mmif"
+        mmif_filename = tdict["item_id"] + "-transcript.mmif"
 
     # try to infer the language from the MMIF if not state explicitly
     if not languages:

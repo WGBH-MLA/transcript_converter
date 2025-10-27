@@ -1,17 +1,57 @@
 # AAPB Transcript Converter
-Routines for processing MMIF files to create AAPB-style JSON transcripts and associated transcript metadata.
+Python module for MMIF files to create transcripts in **AAPB Transcript JSON**, **WebVTT**, and other formats, along with associated transcript metadata.
 
 These routines require existing MMIF files containing annotations of audio, as produced by a CLAMS ASR app, like the [CLAMS whisper-wrapper app](https://apps.clams.ai/whisper-wrapper/).
 
-## Overview
-
-The `proc_asr` module includes functions for processing MMIF produced by a CLAMS ASR app.
-
-The `post_proc_item` module includes functions called by `run_job.py` from [clams-kitchen](https://github.com/WGBH-MLA/clams-kitchen), and it calls functions in `proc_asr.py` to perform postprocessing on MMIF produced by a CLAMS ASR app.
+The module is called by by `run_job.py` in [clams-kitchen](https://github.com/WGBH-MLA/clams-kitchen).  It can also be run directly from the CLI.  The module is also designed to be invoked by other Python modules by calling the `mmif_to_all` function. 
 
 ## Installation
 
 Clone the repository.  Change to the repository directory and do a `pip install -r requirements.txt`.
 
+## Usage
 
+### CLI
 
+If you have an existing MMIF file, you can create a transcript in AAPB JSON and associated TPME, via the CLI, by running
+
+```Shell
+python -m transcript_converter.cli -m PATH/TO/YOURFILE.mmif
+```
+
+To see additional options, run
+```Shell
+python -m transcript_converter.cli -h 
+```
+
+### Importing into other Python projects
+
+The transcript_converter is intended to be used in other Python projects, via one primary function called `mmif_to_all`.  That function takes a string of MMIF and returns a dictionary of strings containing transcripts and transcript metadata in various formats.
+
+Sample code:
+```Python
+import transcript_converter as tc
+
+print("transcript_converter version:", tc.VERSION)
+
+mmif_dirpath = "PATH/TO/YOUR/MMIF/DIR"
+mmif_filename = "YOUR_ITEM.mmif"
+mmif_path = mmif_dirpath + "/" + mmif_filename
+with open( mmif_path, "r") as f:
+    mmif_str = f.read()
+
+d = tc.mmif_to_all( mmif_str, item_id="YOUR_ITEM_ID", mmif_filename=mmif_filename )
+
+print("Keys in dictionary from `mmif_to_all`:")
+for k in d:
+    print(k)
+
+print("TPME data from transcript in AAPB JSON format:")
+print(d["tpme_aajson"])
+```
+
+For full usage details of `mmif_to_all`, see its docstring `convert.py`, or run
+```Python
+import transcript_converter as tc
+help(tc.mmif_to_all)
+```
