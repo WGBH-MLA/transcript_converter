@@ -4,7 +4,7 @@ post_proc_item.py
 Defines functions for doing post processing of MMIF created by CLAMS ASR apps
 such as app-whisper-wrapper.
 
-This file was written with AAPB workflows in mind.  In particular, it assumes 
+This module was written with AAPB workflows in mind.  In particular, it assumes 
 that processing takes place in the context of job processing in the style of 
 clams-kitchen, with `item` and `cf` dictionaries passed from the job runner 
 routine.
@@ -46,6 +46,8 @@ VALID_ARTIFACTS = [ "transcript_aajson",
 
 TPME_PROVIDER = "GBH Archives"
 
+############################################################################
+# Helper functions
 
 def write_out_tpme( tdict:dict,
                     artifact:str,
@@ -55,7 +57,7 @@ def write_out_tpme( tdict:dict,
                     ins:str = None,
                     ) -> None:
     """
-    Write out one of the TPME strings to a file.
+    Helper function to write out one of the TPME strings to a file.
     """
     # try to pull the most recent date from the TPME file
     tpme = json.loads(tdict[artifact])
@@ -91,6 +93,8 @@ def write_out_tpme( tdict:dict,
         print(ins + f"TPME `{artifact}` saved: {tpme_fpath}" )
 
 
+############################################################################
+# Main postprocessing function
 
 def run_post( item:dict, 
               cf:dict, 

@@ -1,15 +1,14 @@
 """
 cli.py
 
-Use the converstion functionality provided by covert.py for simple usage
-from the command line.
+This modules uses the converstion functionality provided by covert.py 
+for simple usage from the command line.
 
 Basic usage: 
    python -m transcript_converter.cli PATH/TO/YOURFILE.mmif
 
 To see additional options
    python -m transcript_converter.cli -h 
-
 """
 
 import argparse
@@ -26,10 +25,11 @@ def main():
 
     app_desc = f"MMIF transcript_converter (version {__version__}). "
     app_desc += """
-Performs transcript conversion from MMIF to AAPB transcript JSON.
+Performs transcript conversion from MMIF to AAPB transcript JSON or WebVTT.
 
-This module is primarily intended to be invoked by other modules by importing it and calling the `mmif_to_all` function.
-Only limited functionality is exposed by this CLI.
+The transcript_converter package is primarily intended to be invoked by other 
+modules by importing it and calling the `mmif_to_all` function.  This CLI is
+intended to be pretty basic.
     """
 
     parser = argparse.ArgumentParser(
@@ -41,19 +41,19 @@ Only limited functionality is exposed by this CLI.
     parser.add_argument("mmifpath", metavar="MMIF",
         help="Path to the source MMIF file")
     parser.add_argument("-v", "--vtt", action="store_true",
-        help="Output transcript in WebVTT format instead of AAPB JSON")
+        help="Output transcript in WebVTT instead of AAPB JSON")
     parser.add_argument("-m", "--tpme", action="store_true",
-        help="Output TPME metadata sidecars for the transcripts produced.")
+        help="Output TPME metadata sidecars for the transcripts produced")
     parser.add_argument("-s", "--max-seg-chars", type=int, default=DEFAULT_MAX_SEGMENT_CHARS,
         help="Maximum number of characters in a time-aligned segment")
     parser.add_argument("-l", "--max-line-chars", type=int, default=DEFAULT_MAX_LINE_CHARS,
         help="Maximum number of charcters in a line before a line break in WebVTT")
     parser.add_argument("-i", "--item-id", default="",
-        help="The identifier of the media, to be recorded in TPME.")
+        help="The identifier of the media, to be recorded in TPME")
     parser.add_argument("-p", "--provider", default=DEFAULT_TPME_PROVIDER,
-        help="The transcript provider, to be recorded in TPME.")
+        help="The transcript provider, to be recorded in TPME")
     parser.add_argument("-n", "--processing-note", default="",
-        help="Processing note to be recorded in TPME.")
+        help="Processing note to be recorded in TPME")
     
     args = parser.parse_args()
 
@@ -62,7 +62,7 @@ Only limited functionality is exposed by this CLI.
         with open(args.mmifpath, "r") as file:
             mmif_str = file.read()
     except Exception as e:
-        print("Failed to open source MMIF file.  Encountered exception:")
+        print("Failed to open the source MMIF file.  Encountered exception:")
         print(e)
         print("Use `-h` flag to see usage instructions.")
         raise SystemExit
