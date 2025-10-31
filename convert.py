@@ -111,8 +111,8 @@ def mmif_to_all( mmif_str:str,
     try:
         toks_arr = proc_asr.make_toks_arr(asr_view)
     except KeyError as e:
-        print("Failed to convert MMIF transcript to an array.")
-        print("Encountered exception", e)
+        logging.warning("Failed to convert MMIF transcript to an array.")
+        logging.warning(f"Encountered exception {e}")
         return None
 
     # perform a check on the tokens array to record problems
@@ -131,9 +131,9 @@ def mmif_to_all( mmif_str:str,
     try:
         toks_arr_split = proc_asr.split_long_segs(toks_arr, max_chars=max_segment_chars)
     except Exception as e:
-        print("Splitting long segments failed.")
-        print("Encountered exception:", e)
-        print("Will proceed without splitting long segments.")
+        logging.warning("Splitting long segments failed.")
+        logging.warning(f"Encountered exception: {e}")
+        logging.warning("Will proceed without splitting long segments.")
         toks_arr_split = copy.deepcopy(toks_arr)
 
     # make sentence array
@@ -156,9 +156,9 @@ def mmif_to_all( mmif_str:str,
             else:
                 raise Exception("No AudioDocument or VideoDocument found.")
         except Exception as e:
-            print("No media ID given and could not derive it from MMIF file.")
-            print("Exception:", e)
-            print("Will attempt to derive an ID from the MMIF filename.")
+            logging.warning("No media ID given and could not derive it from MMIF file.")
+            logging.warning(f"Exception: {e}")
+            logging.warning("Will attempt to derive an ID from the MMIF filename.")
             tdict["item_id"] = (mmif_filename.split(".")[0]).split("_")[0]
     
     # make up the canonical MMIF filename, if not provided
@@ -180,10 +180,10 @@ def mmif_to_all( mmif_str:str,
             if not isinstance(prior_tpme, list):
                 raise TypeError("Top level of prior TPME was not list/array.")
         except JSONDecodeError as e:
-            print("Warning: Unable to open prior TPME record string.  Will not use.")
+            logging.warning("Warning: Unable to open prior TPME record string.  Will not use.")
             prior_tpme = []
         except TypeError as e:
-            print(f"Warning: {e}.  Will not use prior TPME.")
+            logging.warning(f"Warning: {e}.  Will not use prior TPME.")
             prior_tpme = []
     else:
         prior_tpme = []
