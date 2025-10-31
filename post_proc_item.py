@@ -239,11 +239,6 @@ def run_post( item:dict,
         if artifact in artifacts:
             write_out_tpme( tdict, artifact, item, cf, pp_params, ins )
 
-    if "problems" in tdict:
-        problems += [ "convert:"+p for p in tdict["problems"] ]
-    if "infos" in tdict:
-        infos += [ "convert:"+m for m in tdict["infos"] ]
-
 
     # 
     # Finished with the whole postprocess
