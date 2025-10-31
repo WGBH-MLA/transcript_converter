@@ -26,7 +26,7 @@ from mmif.vocabulary import DocumentTypes
 
 from . import proc_asr
 from .known_apps import KNOWN_APPS
-from . import VERSION
+from . import __version__
 
 
 # Default values
@@ -105,7 +105,22 @@ def mmif_to_all( mmif_str:str,
     asr_view = usemmif.get_view_by_id(asr_view_id)
 
     # create tokens array (with sentence labels) from ASR view
-    toks_arr = proc_asr.make_toks_arr(asr_view)
+    try:
+        toks_arr = proc_asr.make_toks_arr(asr_view)
+    except KeyError as e:
+        print("Failed to convert MMIF transcript to an array.")
+        print("Encountered exception", e)
+        return None
+
+    # perform a check on the tokens arraay
+    issues = proc_asr.check_toks_arr( toks_arr )
+    if issues["tokens_without_sentences"]: 
+        logging.warning("Encountered tokens without sentences: " + str(issues["tokens_without_sentences"]) )
+        tdict["problems"].append("tokens_without_sentences:" + str(issues["tokens_without_sentences"]))
+    if issues["discontinuous_sentences_ids"]:
+        logging.warning("Encountered discontinuous sentences: " + str(issues["discontinuous_sentences_ids"]) )
+        tdict["problems"].append("discontinuous_sentences_ids:" + str(issues["discontinuous_sentences_ids"]) )
+
 
     # split tokens array, if appropriate
     toks_arr_split = proc_asr.split_long_sts(toks_arr, max_chars=max_segment_chars)
@@ -456,7 +471,7 @@ def make_tpme_aajson( item_id:str,
     tpme["application_type"] = "format-conversion"
     tpme["application_provider"] = "GBH Archives"
     tpme["application_name"] = "transcript_converter"
-    tpme["application_version"] = VERSION
+    tpme["application_version"] = __version__
     tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
     tpme["application_params"] = {"max_segment_chars": max_segment_chars}
     tpme["processing_note"] = processing_note
@@ -497,7 +512,7 @@ def make_tpme_webvtt( item_id:str,
     tpme["application_type"] = "format-conversion"
     tpme["application_provider"] = "GBH Archives"
     tpme["application_name"] = "transcript_converter"
-    tpme["application_version"] = VERSION
+    tpme["application_version"] = __version__
     tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
     tpme["application_params"] = {"max_segment_chars": max_segment_chars, "max_line_chars": max_line_chars}
     tpme["processing_note"] = processing_note
@@ -537,7 +552,7 @@ def make_tpme_text( item_id:str,
     tpme["application_type"] = "format-conversion"
     tpme["application_provider"] = "GBH Archives"
     tpme["application_name"] = "transcript_converter"
-    tpme["application_version"] = VERSION
+    tpme["application_version"] = __version__
     tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
     tpme["application_params"] = {"max_segment_chars": max_segment_chars}
     tpme["processing_note"] = processing_note

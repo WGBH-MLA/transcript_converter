@@ -1,2 +1,1 @@
 mmif-python>=1.1.2
-pandas>=2

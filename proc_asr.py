@@ -14,8 +14,6 @@ import logging
 import json
 import copy
 
-import pandas as pd
-
 from mmif import Mmif
 from mmif import AnnotationTypes
 from mmif import View
@@ -63,61 +61,13 @@ def tpme_from_mmif( usemmif:Mmif, asr_view_id:str=None ):
 
 
 
-def make_toks_arr( asr_view:View ) -> list :
+def check_toks_arr( toks_arr:list ) -> dict:
     """
-    Takes a MMIF view object and returns a table of tokens and their times.
-
-    Columns:
-        0: start time in ms
-        1: end time in ms
-        2: token string
-        3: id of associated sentence
+    Take a token array, as output by `make_toks_arr`, and scans for issues.
+    Returns a dictionary of any issues encountered.
     """
-
-    # get relevant MMIF annotations
-    tfanns = asr_view.get_annotations(AnnotationTypes.TimeFrame)
-    toanns = asr_view.get_annotations("http://vocab.lappsgrid.org/Token")
-    alanns = asr_view.get_annotations(AnnotationTypes.Alignment)
-    stanns = asr_view.get_annotations("http://vocab.lappsgrid.org/Sentence")
-
-    # build lists from annotations
-    tfs = [ [ ann.get_property("id"), 
-              ann.get_property("start"), 
-              ann.get_property("end") ] for ann in tfanns 
-                                        if ann.get_property("frameType") == "speech" ]
-    tos = [ [ ann.get_property("id"),
-              ann.get_property("word") ] for ann in toanns ]
-    als = [ [ ann.get_property("source"),
-              ann.get_property("target") ] for ann in alanns ]
-    sts = []
-    for ann in stanns:
-        for tg in ann.get_property("targets"):
-            sts.append([ tg, ann.get_property("id") ])
-
-    # make lists into dataframes
-    tfs_df = pd.DataFrame(tfs, columns=['tf_id','start','end'])
-    tos_df = pd.DataFrame(tos, columns=['to_id','word'])
-    als_df = pd.DataFrame(als, columns=['tf_id','to_id'])
-    sts_df = pd.DataFrame(sts, columns=['to_id','st_id'])
-
-    # perform joins
-    tfs_tos_df = pd.merge( tfs_df, pd.merge(tos_df,als_df) )
-    if len(sts):
-        tfs_tos_df = pd.merge( tfs_tos_df, sts_df, how='left' )
-    else:
-        tfs_tos_df['st_id'] = None
-
-    # discard uncessary columns
-    del tfs_tos_df['tf_id']
-    del tfs_tos_df['to_id']
-
-    # want to return a list instead of a dataframe
-    toks_arr = tfs_tos_df.values.tolist()
-    
-    # make sure the token annotations are ordered by their start time
-    toks_arr.sort(key=lambda f:f[0])
-
     # Scan through list to look for issues:
+    #  - Make sure tokens have time spans  -- NEED TO IMPLEMENT!
     #  - Make sure tokens have associated sentences.
     #  - Make sure sentences are not disjointed.
     # (Sentences are disjointed if a token is associated with a known sentence
@@ -139,10 +89,75 @@ def make_toks_arr( asr_view:View ) -> list :
                 sts.append(t[3])
                 last = t[3]
     disc_sts = list(set(disc_sts))
+
+    issues = {}
+    issues["tokens_without_sentences"] = None
+    issues["discontinuous_sentences_ids"] = None
+
     if len(toks_without_sts):
-        logging.warning("Encountered tokens without sentences: " + str(toks_without_sts) )
+        issues["tokens_without_sentences"] = toks_without_sts
     if len(disc_sts):
-        logging.warning("Encountered discontinuous sentences: " + str(disc_sts) )
+        issues["discontinuous_sentences_ids"] = disc_sts
+
+    return issues
+
+
+
+def make_toks_arr( asr_view:View ) -> list :
+    """
+    Takes a MMIF view object and returns a table of tokens and their times.
+
+    Columns:
+        0: start time in ms
+        1: end time in ms
+        2: token string
+        3: id of associated sentence
+    """
+
+    # get relevant MMIF annotations
+    toanns = asr_view.get_annotations("http://vocab.lappsgrid.org/Token")
+    tfanns = asr_view.get_annotations(AnnotationTypes.TimeFrame)
+    alanns = asr_view.get_annotations(AnnotationTypes.Alignment)
+    stanns = asr_view.get_annotations("http://vocab.lappsgrid.org/Sentence")
+
+    # Build a dictionary of tokens indexed by token id
+    # (We'll add the other properties as we get them.)
+    tos = {}
+    for ann in toanns:
+        tos[ann.get_property("id")] = {"word": ann.get_property("word")}
+
+    # Build a dictionary of tfs indexed by tf id
+    tfs = {}
+    for ann in tfanns:
+        if ann.get_property("frameType") == "speech":
+            tfs[ann.get_property("id")] = (ann.get_property("start"), ann.get_property("end"))
+
+    # Use alignment annotations to add the tf information to the token dictionary
+    for ann in alanns:
+        # Not every alignment annotation is one of interest to us
+        if ann.get_property("target") in tos and ann.get_property("source") in tfs:
+            # look up the time span in tfs and add it to the token dictionary
+            if "tspan" not in tos[ann.get_property("target")]:
+                tos[ann.get_property("target")]["tspan"] = tfs[ann.get_property("source")]
+            else:
+                raise KeyError(f'Tried to align more than one TimeFrame with Token `{ann.get_property("target")}`.')
+
+    # Add the sentence IDs to the token dictionary
+    for ann in stanns:
+        sid = ann.get_property("id")
+        # for each target token add the sentence id to the token dictionary
+        for tid in ann.get_property("targets"):
+            # there should not yet be a sentence assigned to this token
+            if "sid" not in tos[tid]:
+                tos[tid]["sid"] = sid
+            else:
+                raise KeyError(f'Tried to assign Sentence `{sid}` to Token `{tid}` which already had sentence `{tos[tid]["sid"]}`.')
+
+    # Create an array from the dictionary
+    toks_arr = [ [ tos[k]["tspan"][0], tos[k]["tspan"][1], tos[k]["word"], tos[k]["sid"] ] for k in tos ]
+
+    # make sure the token annotations are ordered by their start time
+    toks_arr.sort(key=lambda f:f[0])
 
     return toks_arr
 

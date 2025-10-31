@@ -18,13 +18,13 @@ from datetime import datetime
 
 #from .convert import mmif_to_all
 from . import mmif_to_all
-from . import VERSION
+from . import __version__
 from transcript_converter.convert import DEFAULT_TPME_PROVIDER, DEFAULT_MAX_SEGMENT_CHARS, DEFAULT_MAX_LINE_CHARS
 
 
 def main():
 
-    app_desc = f"MMIF transcript_converter (version {VERSION}). "
+    app_desc = f"MMIF transcript_converter (version {__version__}). "
     app_desc += """
 Performs transcript conversion from MMIF to AAPB transcript JSON.
 
