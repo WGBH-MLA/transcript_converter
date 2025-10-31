@@ -16,7 +16,9 @@ the strings of interest.
 """
 
 import json
+from json.decoder import JSONDecodeError
 from datetime import datetime
+import logging
 import time
 import copy
 
@@ -24,15 +26,14 @@ from mmif import Mmif
 from mmif import View
 from mmif.vocabulary import DocumentTypes
 
-from . import proc_asr
-from .known_apps import KNOWN_APPS
 from . import __version__
+from .known_apps import KNOWN_APPS
+from . import proc_asr
+from .proc_asr import DEFAULT_MAX_SEGMENT_CHARS, DEFAULT_MAX_LINE_CHARS
 
-
-# Default values
+# Other default values
 DEFAULT_TPME_PROVIDER = "unspecified"
-DEFAULT_MAX_SEGMENT_CHARS = 110
-DEFAULT_MAX_LINE_CHARS = 42
+
 
 def mmif_to_all( mmif_str:str,
                  item_id:str = None,
@@ -88,6 +89,8 @@ def mmif_to_all( mmif_str:str,
       - tpme_aajson:  TPME metadata for the corresponding output transcript      
       - tpme_webvtt:  TPME metadata for the corresponding output transcript
       - tpme_text:   TPME metadata for the corresponding output transcript
+      - problems:  A list of short messages of problems encountered
+      - infos:  A list of short messages of other conditions noticed
     """
     
     # create the dictionary of transcripts and TPME 
@@ -112,25 +115,26 @@ def mmif_to_all( mmif_str:str,
         print("Encountered exception", e)
         return None
 
-    # perform a check on the tokens arraay
+    # perform a check on the tokens array to record problems
     issues = proc_asr.check_toks_arr( toks_arr )
     if issues["tokens_without_sentences"]: 
         logging.warning("Encountered tokens without sentences: " + str(issues["tokens_without_sentences"]) )
-        tdict["problems"].append("tokens_without_sentences:" + str(issues["tokens_without_sentences"]))
+        tdict["infos"].append("tokens_without_sentences:" + str(issues["tokens_without_sentences"]))
     if issues["discontinuous_sentences_ids"]:
         logging.warning("Encountered discontinuous sentences: " + str(issues["discontinuous_sentences_ids"]) )
         tdict["problems"].append("discontinuous_sentences_ids:" + str(issues["discontinuous_sentences_ids"]) )
 
+    # sanitize tokens array
+    toks_arr = proc_asr.sanitize_toks_arr ( toks_arr, max_segment_chars )
 
-    # split tokens array, if appropriate
-    toks_arr_split = proc_asr.split_long_sts(toks_arr, max_chars=max_segment_chars)
-    # try:
-    #     toks_arr_split = proc_asr.split_long_sts(toks_arr, max_chars=max_segment_chars)
-    # except Exception as e:
-    #     print("Splitting long lines failed.")
-    #     print("Encountered exception:", e)
-    #     print("Will proceed without splitting long lines.")
-    #     toks_arr_split = copy.deepcopy(toks_arr)
+    # split (relabel) long segments, if appropriate
+    try:
+        toks_arr_split = proc_asr.split_long_segs(toks_arr, max_chars=max_segment_chars)
+    except Exception as e:
+        print("Splitting long segments failed.")
+        print("Encountered exception:", e)
+        print("Will proceed without splitting long segments.")
+        toks_arr_split = copy.deepcopy(toks_arr)
 
     # make sentence array
     sts_arr = proc_asr.make_sts_arr(toks_arr_split)
@@ -196,7 +200,7 @@ def mmif_to_all( mmif_str:str,
                                          processing_note,
                                          prior_tpme )
 
-    prior_tmpe_mmif = json.loads(tdict["tpme_mmif"])
+    prior_tpme_mmif = json.loads(tdict["tpme_mmif"])
 
     tdict["tpme_text"] = make_tpme_text( tdict["item_id"], 
                                          mmif_filename, 
@@ -204,7 +208,7 @@ def mmif_to_all( mmif_str:str,
                                          languages, 
                                          max_segment_chars,
                                          processing_note,
-                                         prior_tmpe_mmif )
+                                         prior_tpme_mmif )
 
     tdict["tpme_webvtt"] = make_tpme_webvtt( tdict["item_id"], 
                                              mmif_filename, 
@@ -213,7 +217,7 @@ def mmif_to_all( mmif_str:str,
                                              max_segment_chars,
                                              max_line_chars,
                                              processing_note,
-                                             prior_tmpe_mmif )
+                                             prior_tpme_mmif )
 
     tdict["tpme_aajson"] = make_tpme_aajson( tdict["item_id"], 
                                              mmif_filename, 
@@ -221,7 +225,7 @@ def mmif_to_all( mmif_str:str,
                                              languages,
                                              max_segment_chars,
                                              processing_note,
-                                             prior_tmpe_mmif )
+                                             prior_tpme_mmif )
 
 
     if embed_tpme_aajson:
@@ -242,46 +246,6 @@ def mmif_to_all( mmif_str:str,
 
     return tdict
 
-
-############################################################################
-# Transcript converstion utiltiy functions
-
-def break_long_lines( segment:str, 
-                      max_line_chars:int
-                      ) -> str:
-    """
-    Add line breaks within long segments.
-    
-    (Assumes that there are not yet any line breaks within individual segments.)
-    """
-
-    # break string into a list
-    wordl = segment.split(" ")
-
-    # truncate crazily long words
-    for i, w in enumerate(wordl):
-        if len(w) > max_line_chars:
-            wordl[i] = w[:max_line_chars]
-
-    # split long lines
-    llen = 0
-    for i, w in enumerate(wordl):
-        # if adding a space plus the new word would go over the limit
-        if (llen + 1 + len(wordl[i])) > max_line_chars:
-            # add a carriage return to the end of the preceding word
-            wordl[i-1] += "\n"
-            # start a new line length with the current word
-            llen = len(wordl[i])
-        else:
-            llen += (1 + len(wordl[i]))
-
-    # put string back together
-    split_seg = " ".join(wordl)
-    
-    # remove spaces after newlines
-    split_seg = split_seg.replace("\n ", "\n")
-
-    return split_seg
 
 
 ############################################################################
@@ -343,7 +307,7 @@ def make_transcript_webvtt( sts_arr:list,
     for st in sts_arr:
         # write out the time cue followed by the text 
         cue_line = ms2str(st[0]) + " --> " + ms2str(st[1]) 
-        text_lines = break_long_lines(st[2], max_line_chars)
+        text_lines = proc_asr.break_long_line(st[2], max_line_chars)
         text += ( cue_line + "\n" + text_lines + "\n\n" )
 
     return text

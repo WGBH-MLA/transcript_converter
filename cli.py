@@ -16,10 +16,10 @@ import argparse
 import warnings
 from datetime import datetime
 
-#from .convert import mmif_to_all
+#from . import *
 from . import mmif_to_all
 from . import __version__
-from transcript_converter.convert import DEFAULT_TPME_PROVIDER, DEFAULT_MAX_SEGMENT_CHARS, DEFAULT_MAX_LINE_CHARS
+from . import DEFAULT_TPME_PROVIDER, DEFAULT_MAX_SEGMENT_CHARS, DEFAULT_MAX_LINE_CHARS
 
 
 def main():

@@ -173,11 +173,11 @@ def run_post( item:dict,
                          embed_tpme_aajson = True,
                          processing_note = "clams-kitchen job ID: " + cf["job_id"] )
     
-    # Scan for problems with transcripts and append to logging structures
-    # TO IMPLEMENT
-    # (Or better, have `mmif_to_all` return problems (as a dict key), and append them
-    # to postproc problems.)
-
+    # record any problems observed by `mmif_to_all`
+    if tdict.get("problems"):
+        problems += tdict.get("problems")
+    if tdict.get("infos"):
+        infos += tdict.get("infos")
 
     # 
     # Write out all the artifact files, as appropriate
