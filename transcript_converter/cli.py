@@ -6,9 +6,10 @@ for simple usage from the command line.
 
 Basic usage: 
    python -m transcript_converter.cli PATH/TO/YOURFILE.mmif
+If installed
+   aatc PATH/TO/YOURFILE.mmif
 
-To see additional options
-   python -m transcript_converter.cli -h 
+To see additional options run with `-h`
 """
 
 import argparse
@@ -33,7 +34,7 @@ intended to be pretty basic.
     """
 
     parser = argparse.ArgumentParser(
-        prog='convert.py',
+        prog='aatc',
         description=app_desc,
         formatter_class=argparse.RawTextHelpFormatter
     )

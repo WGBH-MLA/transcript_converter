@@ -23,7 +23,6 @@ import glob
 
 from mmif import Mmif
 
-#from .convert import mmif_to_all
 from . import mmif_to_all
 
 

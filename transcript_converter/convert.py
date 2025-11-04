@@ -434,7 +434,7 @@ def make_tpme_aajson( item_id:str,
     tpme["human_review_level"] = "machine-generated"
     tpme["application_type"] = "format-conversion"
     tpme["application_provider"] = "GBH Archives"
-    tpme["application_name"] = "transcript_converter"
+    tpme["application_name"] = "aapb-transcript-converter"
     tpme["application_version"] = __version__
     tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
     tpme["application_params"] = {"max_segment_chars": max_segment_chars}
@@ -475,7 +475,7 @@ def make_tpme_webvtt( item_id:str,
     tpme["human_review_level"] = "machine-generated"
     tpme["application_type"] = "format-conversion"
     tpme["application_provider"] = "GBH Archives"
-    tpme["application_name"] = "transcript_converter"
+    tpme["application_name"] = "aapb-transcript-converter"
     tpme["application_version"] = __version__
     tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
     tpme["application_params"] = {"max_segment_chars": max_segment_chars, "max_line_chars": max_line_chars}
@@ -515,7 +515,7 @@ def make_tpme_text( item_id:str,
     tpme["human_review_level"] = "machine-generated"
     tpme["application_type"] = "format-conversion"
     tpme["application_provider"] = "GBH Archives"
-    tpme["application_name"] = "transcript_converter"
+    tpme["application_name"] = "aapb-transcript-converter"
     tpme["application_version"] = __version__
     tpme["application_repo"] = "https://github.com/WGBH-MLA/transcript_converter"
     tpme["application_params"] = {"max_segment_chars": max_segment_chars}
