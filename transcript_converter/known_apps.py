@@ -58,6 +58,16 @@ KNOWN_APPS = {
             ("en", "medium"): "medium.en"
         }
     },
+    "http://apps.clams.ai/whisper-wrapper/v15": {
+        "application_name": "CLAMS whisper-wrapper",
+        "application_provider": "Brandeis Lab for Linguistics and Computation",
+        "application_repo": "https://github.com/clamsproject/app-whisper-wrapper",
+        "application_version": "v15",
+        "model_prefix": "openai/whisper-",
+        "model_aliases": {
+            "turbo": "large-v3-turbo"
+        }
+    },
     "http://apps.clams.ai/parakeet-wrapper/v1.0": {
         "application_name": "CLAMS parakeet-wrapper",
         "application_provider": "Brandeis Lab for Linguistics and Computation",

@@ -165,14 +165,6 @@ def mmif_to_all( mmif_str:str,
     if not mmif_filename:
         mmif_filename = tdict["item_id"] + "-transcript.mmif"
 
-    # try to infer the language from the MMIF if not state explicitly
-    if not languages:
-        try:
-            model_lang = asr_view.metadata.appConfiguration["modelLang"] 
-            languages = [ model_lang ]
-        except KeyError:
-            languages = []
-    
     # decode prior tpme given as a string
     if prior_tpme_str:
         try:
@@ -201,6 +193,11 @@ def mmif_to_all( mmif_str:str,
                                          prior_tpme )
 
     prior_tpme_mmif = json.loads(tdict["tpme_mmif"])
+
+    if not ( len(languages) and languages[0] ):
+        # No good language info passed in.
+        # Will rely on language from MMIF file instead.
+        languages = prior_tpme_mmif[0]["transcript_language"] 
 
     tdict["tpme_text"] = make_tpme_text( tdict["item_id"], 
                                          mmif_filename, 
@@ -338,9 +335,9 @@ def make_tpme_mmif( asr_view:View,
                     ) -> str:
 
     iso_ts = asr_view.metadata["timestamp"]
-
-    # Set values of TPME elements
     tpme = {}
+
+    # Set values from function input arguments 
     tpme["media_id"] = item_id
     tpme["transcript_id"] = mmif_filename
     tpme["modification_date"] = iso_ts
@@ -350,10 +347,20 @@ def make_tpme_mmif( asr_view:View,
     tpme["features"] = { "time_aligned": True }
     tpme["human_review_level"] = "machine-generated"
     tpme["application_type"] = "ASR" 
-    tpme["transcript_language"] = languages
 
-    app = asr_view.metadata.app
-    tpme["application_id"] = app
+    # Get values out of MMIF
+    try:
+        app = asr_view.metadata.app
+    except KeyError:
+        app = "NOT PROVIDED"
+    try:
+        model = asr_view.metadata.appConfiguration["model"]
+    except KeyError:
+        model = ""
+    try:
+        language = asr_view.metadata.appConfiguration["language"]
+    except KeyError:
+        language = ""
     try:
         model_size = asr_view.metadata.appConfiguration["modelSize"]
     except KeyError:
@@ -363,31 +370,56 @@ def make_tpme_mmif( asr_view:View,
     except KeyError:
         model_lang = ""
 
+    # Application ID from MMIF
+    tpme["application_id"] = app
+
+    # If we don't have any language info, try to get it from MMIF
+    if len(languages) and languages[0]:
+        tpme["transcript_language"] = languages
+    elif language:
+        tpme["transcript_language"] = [language]
+    elif model_lang:
+        tpme["transcript_language"] = [model_lang]
+    else:
+        tpme["transcript_language"] = []
+
     if app in KNOWN_APPS:
+        # Lookup particular metadata values in KNOWN_APPS dictionary
         tpme["application_provider"] = KNOWN_APPS[app]["application_provider"]
         tpme["application_name"] = KNOWN_APPS[app]["application_name"]
         tpme["application_version"] = KNOWN_APPS[app]["application_version"]
         tpme["application_repo"] = KNOWN_APPS[app]["application_repo"]
 
-        # re-assign the model size if an alias was used
-        try:
-            model_size = KNOWN_APPS[app]["model_size_aliases"][model_size]
-        except KeyError:
-            pass
+        # set model name
+        if model:
+            # Whisper-wrapper v15+ style params    
+            try:
+                # re-assign the model name if an alias was used
+                model_name = KNOWN_APPS[app]["model_aliases"][model]
+            except KeyError:
+                model_name = model
         
-        # if the model was implied by both size and language assign model name accordingly.
-        try:
-            model_name = KNOWN_APPS[app]["implied_lang_specific_models"][(model_lang, model_size)]
-        except KeyError:
-            model_name = model_size
+        else:
+            # Old-style params
+            try:
+                # re-assign the model size if an alias was used
+                model_size = KNOWN_APPS[app]["model_size_aliases"][model_size]
+            except KeyError:
+                pass
+            try:
+                # if the model was implied by both size and language, assign model name accordingly.
+                model_name = KNOWN_APPS[app]["implied_lang_specific_models"][(model_lang, model_size)]
+            except KeyError:
+                model_name = model_size
 
-        # add a prefix if defined
+        # add a prefix, if one is defined
         try:
             tpme["inference_model"] = KNOWN_APPS[app]["model_prefix"] + model_name
         except KeyError:
             tpme["inference_model"] = model_name
 
     else:
+        # Unknown app, unfortunately
         tpme["application_provider"] = "UNKNOWN"
         tpme["application_name"] = app
         try:
@@ -395,9 +427,19 @@ def make_tpme_mmif( asr_view:View,
         except:
             tpme["application_version"] = "UNKNOWN"
         tpme["application_repo"] = "UNKNOWN"
-        tpme["inference_model"] = model_size
 
-    tpme["application_params"] = asr_view.metadata["appConfiguration"]
+        if model:
+            tpme["inference_model"] = model
+        elif model_size:
+            tpme["inference_model"] = model_size
+        else:
+            tpme["inference_model"] = "UNKNOWN"
+
+    try:
+        tpme["application_params"] = asr_view.metadata["appConfiguration"]
+    except:
+        tpme["application_params"] = {}
+
     tpme["processing_note"] = processing_note
 
     tpmel = [tpme]
