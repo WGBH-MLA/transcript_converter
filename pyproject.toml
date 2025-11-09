@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aapb-transcript-converter"
-version = "0.82"
+version = "0.83"
 description = "Python package to read MMIF files to create transcripts in AAPB Transcript JSON, WebVTT, and other formats, along with associated transcript metadata."
 readme = "README.md"
 requires-python = ">=3.8"

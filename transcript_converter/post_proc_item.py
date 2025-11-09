@@ -28,7 +28,6 @@ from . import mmif_to_all
 
 # These are the defaults specific to routines defined in this module.
 POSTPROC_DEFAULTS = { "name": None,
-                      "lang_str": "en",
                       "artifacts": [],
                       "max_segment_chars": 110,
                       "max_line_chars": 42,
